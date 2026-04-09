@@ -174,7 +174,6 @@ function generateDescription(item: Pick<Item, 'brand' | 'size' | 'color' | 'cond
     parts.push('Well-loved and ready for a new home.');
   }
   parts.push('Ready to ship same or next business day! 🚀');
-  parts.push('Smoke-free, pet-free home.');
   parts.push('Happy to answer any questions!');
 
   return parts.join('\n');
