@@ -162,7 +162,18 @@ function generateDescription(item: Pick<Item, 'brand' | 'size' | 'color' | 'cond
   if (item.category) parts.push(`Category: ${item.category}`);
 
   parts.push('');
-  parts.push('Kids clothing — great quality, ready to ship same or next business day! 🚀');
+  if (item.condition === 'nwt') {
+    parts.push('New with tags — never worn. Perfect condition, ready for a new home!');
+  } else if (item.condition === 'nwot') {
+    parts.push('New without tags — never worn, excellent condition.');
+  } else if (item.condition === 'like_new') {
+    parts.push('Worn once or twice — excellent condition, no visible wear.');
+  } else if (item.condition === 'good') {
+    parts.push('Pre-loved and ready for its next adventure!');
+  } else {
+    parts.push('Well-loved and ready for a new home.');
+  }
+  parts.push('Ready to ship same or next business day! 🚀');
   parts.push('Smoke-free, pet-free home.');
   parts.push('Happy to answer any questions!');
 
