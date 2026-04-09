@@ -7,7 +7,7 @@ export interface VisionResult {
   itemType: string | null;
   size: string | null;
   color: string | null;
-  condition: 'like_new' | 'good' | 'fair';
+  condition: 'nwt' | 'nwot' | 'like_new' | 'good' | 'fair';
   category: string | null;
   confidence: 'high' | 'medium' | 'low';
   rawDescription: string;

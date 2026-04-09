@@ -18,7 +18,7 @@ export interface Item {
   brand: string | null;
   size: string | null;
   color: string | null;
-  condition: string;     // 'like_new' | 'good' | 'fair'
+  condition: 'nwt' | 'nwot' | 'like_new' | 'good' | 'fair';
   category: string | null;
   initialPrice: number | null;
   currentPrice: number | null;

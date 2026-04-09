@@ -41,7 +41,7 @@ export async function notifyPendingReview(
     '',
     `<b>Brand:</b> ${item.brand ?? 'Unknown'}`,
     `<b>Size:</b> ${item.size ?? 'Unknown'}`,
-    `<b>Condition:</b> ${item.condition}`,
+    `<b>Condition:</b> ${ { nwt: 'New with Tags', nwot: 'New without Tags', like_new: 'Like New', good: 'Good', fair: 'Fair' }[item.condition] ?? item.condition }`,
     `<b>Suggested Price:</b> $${pricing.price}`,
     '',
     `📷 ${photoLink}`,

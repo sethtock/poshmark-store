@@ -183,6 +183,11 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Description` | `Brand` | `S
 
 ## Status
 
-**Phase:** Planning (answers mostly complete)  
-**Building:** Not started  
-**Waiting on:** Google Cloud setup, Poshmark credentials, browser automation decision
+**Phase:** Build complete — waiting on setup credentials
+**GitHub:** https://github.com/sethtock/poshmark-store
+**Waiting on:**
+- Google Cloud project + service account (Drive + Sheets API)
+- Google Drive folder "Poshmark Store / New Items" created + folder ID
+- Google Sheets spreadsheet created + spreadsheet ID
+- Poshmark email/password
+- `.env` file configured with all credentials

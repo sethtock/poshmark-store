@@ -48,9 +48,11 @@ const BRAND_MULTIPLIERS: Record<string, number> = {
 };
 
 const CONDITION_MULTIPLIERS: Record<string, number> = {
-  like_new: 0.85,
-  good: 0.65,
-  fair: 0.4,
+  nwt: 0.85,      // New with Tags — top condition
+  nwot: 0.80,     // New without Tags
+  like_new: 0.75, // Worn once or twice, no visible wear
+  good: 0.65,     // Normal used wear
+  fair: 0.40,     // Significant wear
 };
 
 const TYPE_BASE_PRICES: Record<string, number> = {
@@ -154,7 +156,7 @@ function generateDescription(item: Pick<Item, 'brand' | 'size' | 'color' | 'cond
   if (item.size) parts.push(`Size: ${item.size}`);
   if (item.color) parts.push(`Color: ${item.color}`);
   if (item.condition) {
-    const conditionText = { like_new: 'Like New', good: 'Good', fair: 'Fair' }[item.condition] ?? item.condition;
+    const conditionText = { nwt: 'New with Tags', nwot: 'New without Tags', like_new: 'Like New', good: 'Good', fair: 'Fair' }[item.condition] ?? item.condition;
     parts.push(`Condition: ${conditionText}`);
   }
   if (item.category) parts.push(`Category: ${item.category}`);
