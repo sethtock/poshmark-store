@@ -34,8 +34,8 @@ Automated Poshmark selling pipeline: photos land in Google Drive → Seth (sub-a
 ## Folder Structure (Google Drive)
 
 ```
-Poshmark Store/
-└── New Items/
+Poshmark Store/                    (folder ID: 1T7pm8E_lG6g3BpJxLTKTjbV_RQDj4YV2)
+└── Inputs/                        (folder ID: 1r7lvD-aNAHQSQKj1rRgbO2PSLVPqPSS9)
     ├── item-001/          ← one folder per item
     │   ├── photo1.jpg
     │   ├── photo2.jpg
@@ -46,7 +46,7 @@ Poshmark Store/
     └── ...
 ```
 
-Chris creates a numbered folder per item, drops all photos in. Sub-agent scans for new folders.
+Chris creates a numbered folder per item, drops all photos in. Sub-agent scans for new folders in the Inputs folder.
 
 ---
 
@@ -183,11 +183,39 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Description` | `Brand` | `S
 
 ## Status
 
-**Phase:** Build complete — waiting on setup credentials
+**Phase:** Google Drive & Sheets setup complete, awaiting Google Cloud service account for API access
 **GitHub:** https://github.com/sethtock/poshmark-store
-**Waiting on:**
-- Google Cloud project + service account (Drive + Sheets API)
-- Google Drive folder "Poshmark Store / New Items" created + folder ID
-- Google Sheets spreadsheet created + spreadsheet ID
-- Poshmark email/password
-- `.env` file configured with all credentials
+
+### ✅ Completed
+- **Poshmark folder created** — `1T7pm8E_lG6g3BpJxLTKTjbV_RQDj4YV2`
+- **Inputs folder created** — `1r7lvD-aNAHQSQKj1rRgbO2PSLVPqPSS9` (where item folders go)
+- **Spreadsheet created** — `1-9Ig2qviF_de9dM82P2KzYZ-NkINlOuo_HLMEMRVzK8` (in Poshmark folder)
+  - Tab "All Items" with headers
+  - Tab "Summary" with headers
+- **Poshmark credentials stored** in `.env`
+- **gog (Google Workspace CLI)** configured with OAuth access
+
+### ⏳ Waiting On
+- **Google Cloud service account** — The code uses `google-auth-library` with service account JWT auth. Need:
+  1. Create Google Cloud project (or use existing)
+  2. Enable Drive API + Sheets API
+  3. Create service account with "Project → Editor" role
+  4. Download JSON key file
+  5. Add `GOOGLE_SERVICE_ACCOUNT_KEY` to `.env` (JSON blob or file path)
+  6. Share the Poshmark folder + spreadsheet with the service account email
+- **Browser automation** — Playwright setup for Poshmark posting
+
+## ⚠️ Poshmark Login — Phone Verification Required
+
+Chris's Poshmark account requires **phone/SMS 2FA** before the `/sell` page unlocks. Every new browser session triggers:
+1. Visit poshmark.com/sell
+2. Enter phone: `9163357435`
+3. Click "Text me"
+4. Wait for SMS code from Chris
+5. Enter 6-digit code in the same phone input field
+6. Click "Ok"
+7. THEN proceed to listing creation
+
+**Credentials stored:** Kirk.chris@gmail.com / i.sZyv6C6o@us_ (in `.env`, not committed)
+
+**IMPORTANT:** Do NOT click "Text me" multiple times without waiting for the code — Poshmark re-sends a new code each time, which invalidates the previous one. Wait for Chris to respond with the code before submitting.
