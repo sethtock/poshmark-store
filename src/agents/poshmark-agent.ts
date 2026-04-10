@@ -2,7 +2,7 @@
 
 import { loadEnv } from '../lib/env.js';
 import { getDriveClient, listFolders, folderToItem } from '../lib/drive.js';
-import { getSheetsClient, getSpreadsheetId, readExistingIds, writeItem, updateItem, refreshSummary } from '../lib/sheets.js';
+import { getSheetsClient, getSpreadsheetId, readExistingIds, writeItem, updateItem, refreshSummary, getFolderIdToItemIdMap } from '../lib/sheets.js';
 import { analyzeItemPhotos } from '../lib/vision.js';
 import { analyzeItem } from '../lib/pricing.js';
 import { createListing, closeBrowser } from '../lib/poshmark.js';
@@ -23,10 +23,16 @@ export async function run(): Promise<void> {
   const existingIds = await readExistingIds(sheets, spreadsheetId);
   console.log(`Found ${existingIds.size} existing items in sheet`);
 
+  // Read processed folder IDs from sheet to avoid reprocessing
+  const folderIdToItemId = await getFolderIdToItemIdMap(sheets, spreadsheetId);
+  const processedFolderIds = new Set(folderIdToItemId.keys());
+  console.log(`Found ${processedFolderIds.size} processed folder IDs`);
+
   const folders = await listFolders(drive, DRIVE_FOLDER_ID);
   console.log(`Found ${folders.length} folders in Drive`);
 
-  const newFolders = folders.filter((f) => !existingIds.has(f.name));
+  // Filter out already-processed folders (by folder ID, not name)
+  const newFolders = folders.filter((f) => !processedFolderIds.has(f.id));
 
   const results = {
     processed: 0,

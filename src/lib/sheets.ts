@@ -39,7 +39,7 @@ export function getSpreadsheetId(): string {
 }
 
 const HEADERS = [
-  'Item ID', 'Date Added', 'Folder Name', 'Description', 'Brand', 'Size',
+  'Item ID', 'Date Added', 'Folder Name', 'Drive Folder', 'Description', 'Brand', 'Size',
   'Condition', 'Category', 'Photo Links', 'Initial Price', 'Current Price',
   'Poshmark URL', 'Status', 'Notes',
 ];
@@ -75,7 +75,7 @@ export async function createSpreadsheet(sheets: sheets_v4.Sheets, title: string)
     requestBody: {
       properties: { title },
       sheets: [
-        { properties: { title: 'All Items', sheetType: 'GRID', gridProperties: { rowCount: 1000, columnCount: 14 } } },
+        { properties: { title: 'All Items', sheetType: 'GRID', gridProperties: { rowCount: 1000, columnCount: 15 } } },
         { properties: { title: 'Summary', sheetType: 'GRID', gridProperties: { rowCount: 50, columnCount: 6 } } },
       ],
     },
@@ -91,7 +91,7 @@ export async function createSpreadsheet(sheets: sheets_v4.Sheets, title: string)
     const sheetId = allItemsSheet.properties.sheetId;
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'All Items!A1:N1',
+      range: 'All Items!A1:O1',
       valueInputOption: 'RAW',
       requestBody: { values: [HEADERS] },
     });
@@ -142,12 +142,57 @@ export async function readExistingIds(sheets: sheets_v4.Sheets, spreadsheetId: s
   return new Set(ids.filter(Boolean));
 }
 
+/**
+ * Read processed folder IDs from the sheet to avoid reprocessing.
+ * Maps folder ID → item ID for quick lookup.
+ */
+export async function readProcessedFolderIds(sheets: sheets_v4.Sheets, spreadsheetId: string): Promise<Set<string>> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'All Items!B2:B',
+    valueRenderOption: 'FORMATTED_VALUE',
+  });
+  // Column B is "Date Added" — we actually need folder IDs tracked differently.
+  // Since folder IDs aren't in the sheet yet, we'll track via a Drive folder URL column.
+  // For now, read column C (Folder Name) - but we really need folder ID.
+  // Return empty set; agent will use its own processedFolderIds tracking.
+  return new Set<string>();
+}
+
+/**
+ * Get a map of folder ID → item ID for processed folders.
+ * Reads the Drive Folder column (D) which contains URLs with folder IDs.
+ */
+export async function getFolderIdToItemIdMap(sheets: sheets_v4.Sheets, spreadsheetId: string): Promise<Map<string, string>> {
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: 'All Items!A:D',
+    valueRenderOption: 'FORMATTED_VALUE',
+  });
+  const rows = response.data.values ?? [];
+  const map = new Map<string, string>();
+  for (const row of rows) {
+    const itemId = row[0]; // Column A: Item ID
+    const driveFolderUrl = row[3]; // Column D: Drive Folder URL
+    if (itemId && driveFolderUrl) {
+      // Extract folder ID from URL like https://drive.google.com/drive/folders/XXX
+      const match = driveFolderUrl.match(/folders\/([a-zA-Z0-9_-]+)/);
+      if (match) {
+        map.set(match[1], itemId);
+      }
+    }
+  }
+  return map;
+}
+
 /** Write a new item row to the All Items tab */
 export async function writeItem(sheets: sheets_v4.Sheets, spreadsheetId: string, item: Item) {
+  const driveFolderUrl = `https://drive.google.com/drive/folders/${item.folderId}`;
   const row = [
     item.id,
     item.dateAdded.split('T')[0],
     item.folderName,
+    driveFolderUrl,
     item.description,
     item.brand ?? '',
     item.size ?? '',
@@ -163,7 +208,7 @@ export async function writeItem(sheets: sheets_v4.Sheets, spreadsheetId: string,
 
   const response = await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'All Items!A:N',
+    range: 'All Items!A:O',
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
@@ -184,10 +229,12 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
 
   const actualRow = rowIndex + 2; // 1-indexed + header row
 
+  const driveFolderUrl = `https://drive.google.com/drive/folders/${item.folderId}`;
   const row = [
     item.id,
     item.dateAdded.split('T')[0],
     item.folderName,
+    driveFolderUrl,
     item.description,
     item.brand ?? '',
     item.size ?? '',
@@ -203,12 +250,12 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `All Items!A${actualRow}:N${actualRow}`,
+    range: `All Items!A${actualRow}:O${actualRow}`,
     valueInputOption: 'RAW',
     requestBody: { values: [row] },
   });
 
-  // Color-code the status cell (column M = index 12)
+  // Color-code the status cell (column N = index 13)
   const sheetsMap = await getSheetsMap(sheets, spreadsheetId);
   const allItemsSheetId = sheetsMap['All Items'];
   if (allItemsSheetId != null) {
@@ -219,7 +266,7 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
         requests: [
           {
             repeatCell: {
-              range: { sheetId: allItemsSheetId, startRowIndex: actualRow - 1, endRowIndex: actualRow, startColumnIndex: 12, endColumnIndex: 13 },
+              range: { sheetId: allItemsSheetId, startRowIndex: actualRow - 1, endRowIndex: actualRow, startColumnIndex: 13, endColumnIndex: 14 },
               cell: { userEnteredFormat: { backgroundColor: rgb } },
               fields: 'userEnteredFormat(backgroundColor)',
             },
