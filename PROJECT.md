@@ -55,14 +55,14 @@ Chris creates a numbered folder per item, drops all photos in. Sub-agent scans f
 | Status | Meaning | Who updates |
 |---|---|---|
 | `pending_review` | Needs human input before posting | Seth → flags Chris |
-| `draft` | Ready but not yet posted | Seth |
-| `posted` | Live on Poshmark | Seth (browser automation) |
+| `ready_to_post` | Processed, approved, waiting to be posted | Seth (after approval or auto-process) |
+| `posted` | Live on Poshmark | Seth (browser automation, triggered by Chris) |
 | `needs_shipped` | Sold, Chris needs to pack & ship | Chris tells Seth |
 | `shipped` | Chris has shipped it | Seth updates after Chris confirms |
 | `sold` | Payment received / transaction complete | Seth (browser check or Chris says) |
 | `error` | Something went wrong | Seth flags with error note |
 
-**Note:** `needs_shipped` and `shipped` are manual triggers — Chris physically ships the item. He'll tell Seth when it's done, or Seth can periodically check Poshmark to sync state.
+**Note:** All items go through `ready_to_post` before posting — Chris always has a chance to review the sheet and trigger posting.
 
 ---
 
@@ -75,15 +75,13 @@ Chris creates a numbered folder per item, drops all photos in. Sub-agent scans f
    a. Run vision AI on cover photo → structured description (brand, type, size, color, condition)
    b. Web search for Poshmark sold comparables → get pricing data
    c. Apply pricing rules → set price
-   d. If price > $80 OR low confidence → set status `pending_review`, ping Chris on Telegram with details, skip posting
-   e. If auto-postable:
-      - Set status `draft`
-      - Browser automation logs into Poshmark
-      - Creates listing with all photos + AI-generated description
-      - Publishes
-      - Captures listing URL
-      - Sets status `posted`
-   f. Update Google Sheet row with all details + URL + status
+   d. If price > $80 OR low confidence OR no brand/size → set status `pending_review`, ping Chris on Telegram with details
+   e. If auto-processable:
+      - Set status `ready_to_post`
+      - Update Google Sheet row with all details (description, brand, size, price, pricing reasoning, confidence)
+      - Ping Chris on Telegram: "Ready to Post" with approve/post button
+   f. Chris tells Seth to post (via Telegram or by saying "post item-003")
+   g. Seth runs browser automation → Poshmark listing created → status `posted`
 
 ### Post-Sale Flow
 1. Chris notifies Seth: "item-003 shipped" (or Seth checks Poshmark periodically)
@@ -106,7 +104,7 @@ Chris replies → Seth proceeds or adjusts.
 ## Google Sheets Structure
 
 ### Tab: `All Items`
-Columns: `Item ID` | `Date Added` | `Folder Name` | `Description` | `Brand` | `Size` | `Condition` | `Category` | `Photo Links` | `Initial Price` | `Current Price` | `Poshmark URL` | `Status` | `Notes`
+Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Description` | `Brand` | `Size` | `Condition` | `Category` | `Photo Links` | `Initial Price` | `Current Price` | `Poshmark URL` | `Status` | `Pricing Reasoning` | `Confidence` | `Notes`
 
 ### Tab: `Summary`
 - Total items processed
@@ -117,6 +115,7 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Description` | `Brand` | `S
 
 ### Conditional Formatting
 - `pending_review` → yellow
+- `ready_to_post` → gray (needs Chris action to post)
 - `posted` → blue
 - `needs_shipped` → orange
 - `shipped` → purple

@@ -104,6 +104,8 @@ export async function folderToItem(
     poshmarkUrl: null,
     status: 'pending_review',
     notes: '',
+    pricingReasoning: '',
+    pricingConfidence: 'low',
     dateAdded: new Date().toISOString(),
     lastUpdated: new Date().toISOString(),
   };

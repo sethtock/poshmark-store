@@ -41,12 +41,12 @@ export function getSpreadsheetId(): string {
 const HEADERS = [
   'Item ID', 'Date Added', 'Folder Name', 'Drive Folder', 'Description', 'Brand', 'Size',
   'Condition', 'Category', 'Photo Links', 'Initial Price', 'Current Price',
-  'Poshmark URL', 'Status', 'Notes',
+  'Poshmark URL', 'Status', 'Pricing Reasoning', 'Confidence', 'Notes',
 ];
 
 const STATUS_COLORS: Record<ItemStatus, string> = {
   pending_review: '#FFF3CD',
-  draft: '#E2E3E5',
+  ready_to_post: '#E2E3E5',
   posted: '#CCE5FF',
   needs_shipped: '#FFD4A3',
   shipped: '#D1ECF1',
@@ -75,7 +75,7 @@ export async function createSpreadsheet(sheets: sheets_v4.Sheets, title: string)
     requestBody: {
       properties: { title },
       sheets: [
-        { properties: { title: 'All Items', sheetType: 'GRID', gridProperties: { rowCount: 1000, columnCount: 15 } } },
+        { properties: { title: 'All Items', sheetType: 'GRID', gridProperties: { rowCount: 1000, columnCount: 17 } } },
         { properties: { title: 'Summary', sheetType: 'GRID', gridProperties: { rowCount: 50, columnCount: 6 } } },
       ],
     },
@@ -91,7 +91,7 @@ export async function createSpreadsheet(sheets: sheets_v4.Sheets, title: string)
     const sheetId = allItemsSheet.properties.sheetId;
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'All Items!A1:O1',
+      range: 'All Items!A1:Q1',
       valueInputOption: 'RAW',
       requestBody: { values: [HEADERS] },
     });
@@ -203,12 +203,14 @@ export async function writeItem(sheets: sheets_v4.Sheets, spreadsheetId: string,
     item.currentPrice ?? '',
     item.poshmarkUrl ?? '',
     item.status,
+    item.pricingReasoning ?? '',
+    item.pricingConfidence ?? '',
     item.notes,
   ];
 
   const response = await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'All Items!A:O',
+    range: 'All Items!A:Q',
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
@@ -245,12 +247,14 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
     item.currentPrice ?? '',
     item.poshmarkUrl ?? '',
     item.status,
+    item.pricingReasoning ?? '',
+    item.pricingConfidence ?? '',
     item.notes,
   ];
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `All Items!A${actualRow}:O${actualRow}`,
+    range: `All Items!A${actualRow}:Q${actualRow}`,
     valueInputOption: 'RAW',
     requestBody: { values: [row] },
   });
@@ -288,15 +292,15 @@ function hexToRgb(hex: string): { red: number; green: number; blue: number } {
 export async function refreshSummary(sheets: sheets_v4.Sheets, spreadsheetId: string) {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'All Items!A2:M',
+    range: 'All Items!A2:Q',
     valueRenderOption: 'FORMATTED_VALUE',
   });
 
   const rows = response.data.values ?? [];
   const allItems = rows.map((r) => ({
-    status: r[12] as ItemStatus,
-    price: parseFloat(r[10]) || 0,
-    initialPrice: parseFloat(r[9]) || 0,
+    status: r[13] as ItemStatus,
+    price: parseFloat(r[11]) || 0,
+    initialPrice: parseFloat(r[10]) || 0,
   }));
 
   const total = allItems.length;
@@ -312,8 +316,9 @@ export async function refreshSummary(sheets: sheets_v4.Sheets, spreadsheetId: st
   const summaryRows = [
     ['Metric', 'Value'],
     ['Total Items Processed', total],
-    ['Items Posted', byStatus['posted'] ?? 0],
+    ['Items Ready to Post', byStatus['ready_to_post'] ?? 0],
     ['Items Pending Review', byStatus['pending_review'] ?? 0],
+    ['Items Posted', byStatus['posted'] ?? 0],
     ['Items Sold', byStatus['sold'] ?? 0],
     ['Items Needs Shipped', byStatus['needs_shipped'] ?? 0],
     ['Items Shipped', byStatus['shipped'] ?? 0],
@@ -325,7 +330,7 @@ export async function refreshSummary(sheets: sheets_v4.Sheets, spreadsheetId: st
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: 'Summary!A1:B11',
+    range: 'Summary!A1:B12',
     valueInputOption: 'RAW',
     requestBody: { values: summaryRows },
   });

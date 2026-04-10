@@ -72,6 +72,34 @@ export async function notifyItemPosted(item: Item): Promise<void> {
   await sendMessage(text);
 }
 
+export async function notifyReadyToPost(
+  item: Item,
+  pricing: PricingResult,
+): Promise<void> {
+  const text = [
+    `🚀 <b>Ready to Post — ${item.id}</b>`,
+    '',
+    `<b>Brand:</b> ${item.brand ?? 'Unknown'}`,
+    `<b>Size:</b> ${item.size ?? 'Unknown'}`,
+    `<b>Condition:</b> ${ { nwt: 'New with Tags', nwot: 'New without Tags', like_new: 'Like New', good: 'Good', fair: 'Fair' }[item.condition] ?? item.condition }`,
+    `<b>Price:</b> $${item.currentPrice}`,
+    `<b>Confidence:</b> ${pricing.confidence}`,
+    '',
+    item.description ? `${item.description.substring(0, 200)}` : '',
+    '',
+    `📷 ${item.photoUrls[0] ? `[View Photo](${item.photoUrls[0]})` : 'No photo'}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const approveButton: ButtonRow = [
+    { text: `✅ Post Now at $${item.currentPrice}`, callback_data: `post_${item.id}` },
+    { text: '⏭️ Skip for now', callback_data: `skip_${item.id}` },
+  ];
+
+  await sendMessage(text, [approveButton]);
+}
+
 export async function notifyError(itemId: string, error: string): Promise<void> {
   await sendMessage(`❌ <b>Error Posting ${itemId}</b>\n\n${error}`);
 }
@@ -80,6 +108,7 @@ export async function notifyRunSummary(
   processed: number,
   posted: number,
   pendingReview: number,
+  readyToPost: number,
   sold: number,
   errors: number,
 ): Promise<void> {
@@ -88,8 +117,9 @@ export async function notifyRunSummary(
     `${emoji} <b>Poshmark Run Complete</b>`,
     '',
     `Processed: ${processed}`,
-    `Posted: ${posted}`,
     `Pending Review: ${pendingReview}`,
+    `Ready to Post: ${readyToPost}`,
+    `Posted: ${posted}`,
     `Sold: ${sold}`,
     `Errors: ${errors}`,
   ].join('\n');

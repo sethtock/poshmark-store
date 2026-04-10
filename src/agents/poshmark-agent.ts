@@ -6,7 +6,7 @@ import { getSheetsClient, getSpreadsheetId, readExistingIds, writeItem, updateIt
 import { analyzeItemPhotos } from '../lib/vision.js';
 import { analyzeItem } from '../lib/pricing.js';
 import { createListing, closeBrowser } from '../lib/poshmark.js';
-import { notifyPendingReview, notifyItemPosted, notifyError, notifyRunSummary } from '../lib/telegram.js';
+import { notifyPendingReview, notifyItemPosted, notifyReadyToPost, notifyError, notifyRunSummary } from '../lib/telegram.js';
 import type { Item } from '../types.js';
 
 loadEnv();
@@ -38,6 +38,7 @@ export async function run(): Promise<void> {
     processed: 0,
     posted: 0,
     pendingReview: 0,
+    readyToPost: 0,
     sold: 0,
     errors: 0,
     errorsList: [] as string[],
@@ -69,6 +70,10 @@ export async function run(): Promise<void> {
       item.initialPrice = analysis.pricing.price;
       item.currentPrice = analysis.pricing.price;
 
+      // Store pricing details in the item
+      item.pricingReasoning = analysis.pricing.reasoning;
+      item.pricingConfidence = analysis.pricing.confidence;
+
       if (analysis.needsReview) {
         item.status = 'pending_review';
         item.notes = (item.notes ? item.notes + ' | ' : '') + (analysis.reviewReason ?? 'Needs review');
@@ -78,36 +83,13 @@ export async function run(): Promise<void> {
         continue;
       }
 
-      item.status = 'draft';
+      // All processed items go to ready_to_post — Chris reviews the sheet and tells Seth to post
+      item.status = 'ready_to_post';
+      item.lastUpdated = new Date().toISOString();
       await updateItem(sheets, spreadsheetId, item);
-
-      try {
-        const listingUrl = await createListing({
-          title: buildTitle(item),
-          description: item.description,
-          category: item.category ?? 'Kids',
-          brand: item.brand,
-          size: item.size,
-          condition: item.condition,
-          price: item.currentPrice!,
-          photoUrls: item.photoUrls,
-        });
-
-        item.poshmarkUrl = listingUrl;
-        item.status = 'posted';
-        item.lastUpdated = new Date().toISOString();
-        await updateItem(sheets, spreadsheetId, item);
-        await notifyItemPosted(item);
-        results.posted++;
-      } catch (postError) {
-        const errorMsg = postError instanceof Error ? postError.message : String(postError);
-        item.status = 'error';
-        item.notes = `Post error: ${errorMsg}`;
-        await updateItem(sheets, spreadsheetId, item);
-        await notifyError(item.id, errorMsg);
-        results.errors++;
-        results.errorsList.push(`${item.id}: ${errorMsg}`);
-      }
+      await notifyReadyToPost(item, analysis.pricing);
+      results.readyToPost++;
+      continue;
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       results.errors++;
@@ -122,7 +104,7 @@ export async function run(): Promise<void> {
   }
 
   await closeBrowser();
-  await notifyRunSummary(results.processed, results.posted, results.pendingReview, results.sold, results.errors);
+  await notifyRunSummary(results.processed, results.posted, results.pendingReview, results.readyToPost, results.sold, results.errors);
 
   console.log('✅ Run complete:', JSON.stringify(results, null, 2));
 }

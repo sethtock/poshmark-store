@@ -2,7 +2,7 @@
 
 export type ItemStatus =
   | 'pending_review'
-  | 'draft'
+  | 'ready_to_post'
   | 'posted'
   | 'needs_shipped'
   | 'shipped'
@@ -25,6 +25,8 @@ export interface Item {
   poshmarkUrl: string | null;
   status: ItemStatus;
   notes: string;
+  pricingReasoning: string;  // how the price was determined
+  pricingConfidence: 'high' | 'medium' | 'low';
   dateAdded: string;     // ISO date string
   lastUpdated: string;   // ISO date string
 }
