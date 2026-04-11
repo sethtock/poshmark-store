@@ -8,8 +8,9 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "test:post": "tsx src/test-post.ts",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "lint": "eslint src/**/*.ts"
+    "test": "vitest",
+    "test:ci": "vitest run --reporter=default",
+    "test:watch": "vitest --watch"
   },
   "dependencies": {
     "@google-cloud/local-auth": "^3.0.1",
@@ -24,7 +25,8 @@
     "@types/node": "^22.13.9",
     "eslint": "^9.22.0",
     "tsx": "^4.19.3",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.4"
   },
   "engines": {
     "node": ">=20.0.0"

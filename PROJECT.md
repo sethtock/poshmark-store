@@ -197,6 +197,11 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
   - JSON key saved to `service-account-key.json`
   - Drive + Sheets APIs enabled
   - Drive folder + spreadsheet shared with service account (writer access)
+- **HEIC photo conversion** — Drive thumbnail CDN converts HEIC→JPEG automatically
+- **Comparable cache** — local JSON cache stores Poshmark sold comps (30-day expiry, brand:itemType:size key)
+- **Vision analysis** — works with local JPEG files (base64 encoded)
+- **Automated tests** — Vitest unit tests for pricing, comparables, vision logic
+- **ADRs** — architecture decision records for HEIC conversion, comparable cache, service account auth
 
 ### ⏳ Waiting On
 - **Browser automation** — Playwright setup for Poshmark posting
