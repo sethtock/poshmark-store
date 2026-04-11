@@ -2,6 +2,8 @@
 
 import type { Item, PricingResult, ComparableItem } from '../types.js';
 import { findComparables } from './comparables.js';
+import { loadEnv, REVIEW_PRICE_THRESHOLD } from './env.js';
+loadEnv(); // Ensure env vars are loaded before reading REVIEW_PRICE_THRESHOLD
 
 type Confidence = 'high' | 'medium' | 'low';
 
@@ -72,12 +74,12 @@ export async function analyzeItem(item: Item): Promise<AnalyzeResult> {
 
   const needsReview =
     pricing.confidence === 'low' ||
-    (pricing.price > 80) ||
+    (pricing.price > REVIEW_PRICE_THRESHOLD) ||
     !item.brand ||
     !item.size;
 
   let reviewReason: string | undefined;
-  if (pricing.price > 80) reviewReason = `Price $${pricing.price} exceeds $80 threshold`;
+  if (pricing.price > REVIEW_PRICE_THRESHOLD) reviewReason = `Price $${pricing.price} exceeds $${REVIEW_PRICE_THRESHOLD} threshold`;
   else if (pricing.confidence === 'low') reviewReason = 'Low pricing confidence';
   else if (!item.brand) reviewReason = 'No brand detected';
   else if (!item.size) reviewReason = 'No size detected';

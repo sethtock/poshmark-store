@@ -197,9 +197,9 @@ Rules:
 
 function inferSizeSystem(size: string): ComparableEntry['sizeSystem'] {
   const s = (size ?? '').toLowerCase();
-  // Kids sizes: 0C-13C, 1Y-7Y
-  if (/^\d+(\.\d+)?[cm]$/i.test(s) || /^[1-7]y$/i.test(s)) return 'us-kids';
-  // Womens sizes: 5-13 (odd numbers typically)
+  // Kids sizes: 0C-13C, 1Y-7Y, 2T-5T (toddler)
+  if (/^\d+(\.\d+)?[cmcy]$/i.test(s)) return 'us-kids';
+  // Womens sizes: 5-9 (numeric only)
   if (/^\d+$/.test(s)) {
     const n = parseInt(s);
     if (n >= 5 && n <= 9) return 'us-womens';
