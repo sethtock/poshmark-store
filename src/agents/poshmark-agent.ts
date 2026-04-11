@@ -1,7 +1,7 @@
 // Poshmark sub-agent — callable from main Seth agent
 
 import { loadEnv } from '../lib/env.js';
-import { getDriveClient, listFolders, folderToItem } from '../lib/drive.js';
+import { getDriveClient, listFolders, folderToItem, cleanupTempPhotos, getAuth } from '../lib/drive.js';
 import { getSheetsClient, getSpreadsheetId, readExistingIds, writeItem, updateItem, refreshSummary, getFolderIdToItemIdMap } from '../lib/sheets.js';
 import { analyzeItemPhotos } from '../lib/vision.js';
 import { analyzeItem } from '../lib/pricing.js';
@@ -17,7 +17,7 @@ export async function run(): Promise<void> {
 
   console.log('🚀 Starting Poshmark sub-agent run...');
 
-  const [drive, sheets] = await Promise.all([getDriveClient(), getSheetsClient()]);
+  const [drive, sheets, auth] = await Promise.all([getDriveClient(), getSheetsClient(), getAuth()]);
   const spreadsheetId = getSpreadsheetId();
 
   const existingIds = await readExistingIds(sheets, spreadsheetId);
@@ -49,14 +49,16 @@ export async function run(): Promise<void> {
     results.processed++;
 
     try {
-      const item = await folderToItem(drive, folder, existingIds);
+      const item = await folderToItem(drive, auth, folder, existingIds);
       if (!item) continue;
       existingIds.add(item.id);
 
       await writeItem(sheets, spreadsheetId, item);
 
-      if (item.photoUrls.length > 0) {
-        const vision = await analyzeItemPhotos(item.photoUrls);
+      // Use localPhotoPaths (converted to JPEG) for vision analysis
+      const photosToAnalyze = item.localPhotoPaths.length > 0 ? item.localPhotoPaths : item.photoUrls;
+      if (photosToAnalyze.length > 0) {
+        const vision = await analyzeItemPhotos(photosToAnalyze);
         item.brand = vision.brand;
         item.size = vision.size;
         item.color = vision.color;
@@ -104,6 +106,7 @@ export async function run(): Promise<void> {
   }
 
   await closeBrowser();
+  await cleanupTempPhotos();
   await notifyRunSummary(results.processed, results.posted, results.pendingReview, results.readyToPost, results.sold, results.errors);
 
   console.log('✅ Run complete:', JSON.stringify(results, null, 2));

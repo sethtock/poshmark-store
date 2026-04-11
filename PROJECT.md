@@ -193,15 +193,12 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
   - Tab "Summary" with headers
 - **Poshmark credentials stored** in `.env`
 - **gog (Google Workspace CLI)** configured with OAuth access
+- **Google Cloud service account** — `poshmark-drive@poshmark-store.iam.gserviceaccount.com`
+  - JSON key saved to `service-account-key.json`
+  - Drive + Sheets APIs enabled
+  - Drive folder + spreadsheet shared with service account (writer access)
 
 ### ⏳ Waiting On
-- **Google Cloud service account** — The code uses `google-auth-library` with service account JWT auth. Need:
-  1. Create Google Cloud project (or use existing)
-  2. Enable Drive API + Sheets API
-  3. Create service account with "Project → Editor" role
-  4. Download JSON key file
-  5. Add `GOOGLE_SERVICE_ACCOUNT_KEY` to `.env` (JSON blob or file path)
-  6. Share the Poshmark folder + spreadsheet with the service account email
 - **Browser automation** — Playwright setup for Poshmark posting
 
 ## ⚠️ Poshmark Login — Phone Verification Required

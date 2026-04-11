@@ -16,17 +16,27 @@ export interface VisionResult {
 type Confidence = 'high' | 'medium' | 'low';
 
 /**
- * Analyze a single photo URL using the agent's image model (via the image tool).
- * Returns structured item data extracted from the image.
- *
- * Since we can't call the image() tool directly from Node code, we call the
- * configured LLM with vision capability via a separate HTTP call using the
- * OPENROUTER_API_KEY or OPENAI_API_KEY env var.
+ * Analyze a single photo using the vision API.
+ * Accepts either a URL (http:// or https://) or a local file path.
+ * For local files, reads from disk and sends as base64-encoded JPEG.
  */
-export async function analyzePhoto(photoUrl: string): Promise<VisionResult> {
+export async function analyzePhoto(photoUrlOrPath: string): Promise<VisionResult> {
   const apiKey = process.env.OPENAI_API_KEY ?? process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     return { brand: null, itemType: null, size: null, color: null, condition: 'good', category: null, confidence: 'low', rawDescription: 'No API key set for vision' };
+  }
+
+  const isUrl = photoUrlOrPath.startsWith('http://') || photoUrlOrPath.startsWith('https://');
+
+  let imageContent: { url?: string } | { url?: string; detail?: string };
+  if (isUrl) {
+    imageContent = { url: photoUrlOrPath };
+  } else {
+    // Local file — read and base64-encode
+    const fs = await import('fs/promises');
+    const buffer = await fs.readFile(photoUrlOrPath);
+    const base64 = buffer.toString('base64');
+    imageContent = { url: `data:image/jpeg;base64,${base64}`, detail: 'low' };
   }
 
   // Use OpenAI vision API (also works with OpenRouter-compatible endpoints)
@@ -61,7 +71,7 @@ export async function analyzePhoto(photoUrl: string): Promise<VisionResult> {
               },
               {
                 type: 'image_url',
-                image_url: { url: photoUrl },
+                image_url: imageContent,
               },
             ],
           },

@@ -13,7 +13,8 @@ export interface Item {
   id: string;            // item-001, item-002, etc.
   folderName: string;    // original Drive folder name
   folderId: string;      // Google Drive folder ID
-  photoUrls: string[];   // Drive photo URLs
+  photoUrls: string[];   // Drive photo URLs (for Sheets)
+  localPhotoPaths: string[]; // Local JPEG file paths (for vision analysis)
   description: string;   // AI-generated Poshmark listing description
   brand: string | null;
   size: string | null;
