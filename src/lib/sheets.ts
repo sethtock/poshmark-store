@@ -43,6 +43,7 @@ const HEADERS = [
   'Condition', 'Category', 'Photo Links', 'Initial Price', 'Current Price',
   'Poshmark URL', 'Status', 'Pricing Reasoning', 'Confidence', 'Notes',
 ];
+const HEADER_COUNT = 17; // A through Q
 
 const STATUS_COLORS: Record<ItemStatus, string> = {
   pending_review: '#FFF3CD',
