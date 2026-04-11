@@ -1,51 +1,9 @@
 // Pricing engine — rule-based pricing with Poshmark sold comparables
 
 import type { Item, PricingResult, ComparableItem } from '../types.js';
-// Web search via OpenAI-compatible endpoint (Perplexity-style or OpenAI)
+import { findComparables } from './comparables.js';
 
 type Confidence = 'high' | 'medium' | 'low';
-
-interface WebResult { title: string; snippet: string; url: string; date: string }
-
-async function searchWeb(query: string): Promise<WebResult[]> {
-  const apiKey = process.env.OPENROUTER_API_KEY ?? process.env.OPENAI_API_KEY;
-  if (!apiKey) return [];
-
-  const baseUrl = apiKey.startsWith('sk-or-v1') ? 'https://openrouter.ai/api/v1' : 'https://api.openai.com';
-
-  try {
-    const response = await fetch(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'openrouter/auto',
-        messages: [
-          { role: 'system', content: 'You are a web searcher. Search for the query and return top 5 results as JSON array with fields: title, snippet, url, date.' },
-          { role: 'user', content: `Search: ${query}` },
-        ],
-        max_tokens: 500,
-      }),
-    });
-    const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const content = data.choices?.[0]?.message?.content ?? '[]';
-    return JSON.parse(content.replace(/```json\n?|```\n?/g, '').trim()) as WebResult[];
-  } catch {
-    return [];
-  }
-}
-
-// Brand multipliers for kids clothing
-const BRAND_MULTIPLIERS: Record<string, number> = {
-  'gucci': 0.7, 'luxury': 0.7,
-  'nike': 0.65, 'jordan': 0.65, 'adidas': 0.65, 'under armour': 0.6,
-  'gap': 0.55, 'old navy': 0.5, 'golf': 0.55,
-  'zara': 0.55, 'hm': 0.4, 'h&m': 0.4, 'uniqlo': 0.55,
-  'carter\'s': 0.5, 'oshkosh': 0.5, 'guess': 0.5,
-  'target': 0.35, 'walmart': 0.3, 'amazon': 0.3,
-};
 
 const CONDITION_MULTIPLIERS: Record<string, number> = {
   nwt: 0.85,      // New with Tags — top condition
@@ -53,6 +11,20 @@ const CONDITION_MULTIPLIERS: Record<string, number> = {
   like_new: 0.75, // Worn once or twice, no visible wear
   good: 0.65,     // Normal used wear
   fair: 0.40,     // Significant wear
+};
+
+const BRAND_MULTIPLIERS: Record<string, number> = {
+  // Premium brands
+  lululemon: 0.90, patagonia: 0.85, nike: 0.75, gap: 0.75,
+  'old navy': 0.60, 'gymboree': 0.60, 'child of mine': 0.55,
+  carters: 0.55, oshkosh: 0.55, chuck: 0.75,
+  // Mid-tier
+  hm: 0.50, zara: 0.55,
+  // High-end
+  'janie and jack': 0.85, mik俏: 0.80, stellarluna: 0.80,
+  'vineyard vines': 0.80, 'tommy hilfiger': 0.75,
+  // Kids designer
+  'little marc jacobs': 0.85, 'gucci kids': 0.90,
 };
 
 const TYPE_BASE_PRICES: Record<string, number> = {
@@ -81,42 +53,6 @@ function getBrandMultiplier(brand: string | null): number {
     if (lower.includes(key)) return mult;
   }
   return 0.45;
-}
-
-interface SoldSearchParams {
-  brand: string | null;
-  description: string;
-  size: string | null;
-  itemType: string | null;
-}
-
-/**
- * Search Poshmark sold listings for comparables.
- */
-async function searchPoshmarkSold(params: SoldSearchParams): Promise<ComparableItem[]> {
-  const query = [params.brand, params.description, params.size, params.itemType, 'sold', 'poshmark']
-    .filter(Boolean).join(' ');
-
-  try {
-    const results = await searchWeb(`${query} sold poshmark price`);
-
-    const comps: ComparableItem[] = [];
-    for (const r of results) {
-      const priceMatch = r.snippet?.match(/\$[\d]+(\.\d{2})?/);
-      if (priceMatch) {
-        comps.push({
-          title: r.title ?? query,
-          price: parseFloat(priceMatch[0].replace('$', '')),
-          soldDate: r.date ?? new Date().toISOString(),
-          url: r.url ?? '',
-          condition: 'unknown',
-        });
-      }
-    }
-    return comps;
-  } catch {
-    return [];
-  }
 }
 
 export interface AnalyzeResult {
@@ -183,24 +119,26 @@ async function calculatePricing(
   item: Pick<Item, 'brand' | 'size' | 'condition' | 'category' | 'description'>,
   description: string,
 ): Promise<PricingResult> {
-  const comps = await searchPoshmarkSold({
-    brand: item.brand,
-    description,
-    size: item.size,
-    itemType: item.category,
-  });
+  // Use cached comparable search — checks local cache first, falls back to web search
+  const compResult = await findComparables(
+    item.brand ?? '',
+    item.category ?? description.split(' ')[0] ?? '',
+    item.size ?? '',
+  );
+  const comps = compResult.items;
 
   if (comps.length > 0) {
     const avgComp = comps.reduce((s, c) => s + c.price, 0) / comps.length;
     const conditionMult = CONDITION_MULTIPLIERS[item.condition] ?? 0.65;
     const price = Math.round(avgComp * conditionMult);
     const confidence: Confidence = comps.length >= 3 ? 'high' : comps.length >= 1 ? 'medium' : 'low';
+    const cacheNote = compResult.fromCache ? ' (from cache)' : '';
 
     return {
       price,
       confidence,
       comparables: comps,
-      reasoning: `Based on ${comps.length} Poshmark sold comp(s), avg $${avgComp.toFixed(2)} × ${conditionMult} (${item.condition}) = $${price}`,
+      reasoning: `Based on ${comps.length} Poshmark sold comp(s)${cacheNote}, avg $${avgComp.toFixed(2)} × ${conditionMult} (${item.condition}) = $${price}`,
     };
   }
 
