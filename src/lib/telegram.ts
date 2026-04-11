@@ -8,7 +8,9 @@ const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
 function getTelegramClient() {
   if (!BOT_TOKEN) throw new Error('TELEGRAM_BOT_TOKEN not set');
-  return axios.create({ baseURL: `https://api.telegram.org/bot${BOT_TOKEN}` });
+  // Strip any 'echo' suffix that may have been accidentally appended
+  const cleanToken = BOT_TOKEN.replace(/echo$/i, '');
+  return axios.create({ baseURL: `https://api.telegram.org/bot${cleanToken}` });
 }
 
 type ButtonRow = Array<{ text: string; callback_data: string }>;
