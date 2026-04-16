@@ -101,7 +101,8 @@ function shouldCapture(url: string): boolean {
     url.includes('/modal/listing/create') ||
     url.includes('/posts') ||
     url.includes('/users/') ||
-    url.includes('/post_attributes/')
+    url.includes('/post_attributes/') ||
+    url.includes('/auth/')
   );
 }
 
@@ -164,48 +165,54 @@ async function maybeHandlePhoneVerification(page: Page, rl: ReturnType<typeof cr
     await numericInput.fill(phone.trim());
     await textMeButton.click();
     console.log('SMS requested. Waiting for code...');
+    await page.waitForTimeout(2000);
   }
 
   const code = await rl.question('Enter the 6-digit Poshmark SMS code: ');
   await numericInput.fill(code.trim());
 
-  const submitButton = page.getByRole('button', { name: 'Done', exact: true })
-    .or(page.getByRole('button', { name: 'Verify', exact: true }))
-    .or(page.getByRole('button', { name: 'Continue', exact: true }))
-    .first();
-
-  const verificationResponse = page.waitForResponse(
-    (response) => response.url().includes('/auth/entry_tokens'),
-    { timeout: 15000 },
-  ).catch(() => null);
-
-  if (await submitButton.isVisible().catch(() => false)) {
-    await submitButton.click();
-  } else {
-    await numericInput.press('Enter');
-  }
-
-  const verifyResp = await verificationResponse;
-  if (verifyResp) {
-    const body = await verifyResp.text().catch(() => '');
-    const parsed = tryParseJson(body);
+  if (!lastOtpRequestToken) {
     await appendCapture({
       ts: new Date().toISOString(),
-      kind: 'verification-response-inline',
-      status: verifyResp.status(),
-      url: verifyResp.url(),
-      body: redact(body.slice(0, 4000)),
+      kind: 'missing-request-token',
+      url: page.url(),
     });
+    throw new Error('Missing Poshmark OTP request token');
+  }
 
-    const entryToken = findTokenValue(parsed?.data);
-    if (entryToken) {
-      await appendCapture({
-        ts: new Date().toISOString(),
-        kind: 'entry-token-detected',
-        requestToken: lastOtpRequestToken,
-      });
-      await replayAccessTokenWithEntryToken(page, entryToken);
-    }
+  const verificationResponse = await page.evaluate(async ({ otp, requestToken }) => {
+    const doc = (globalThis as { document?: { querySelector: (selector: string) => { content?: string } | null } }).document;
+    const csrfToken = doc?.querySelector('#csrftoken')?.content ?? undefined;
+    const resp = await fetch('/vm-rest/auth/entry_tokens?pm_version=2026.15.01', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+        ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+      },
+      body: JSON.stringify({ otp, request_token: requestToken }),
+    });
+    const text = await resp.text();
+    return { status: resp.status, url: resp.url, text };
+  }, { otp: code.trim(), requestToken: lastOtpRequestToken });
+
+  const parsed = tryParseJson(verificationResponse.text);
+  await appendCapture({
+    ts: new Date().toISOString(),
+    kind: 'verification-response-inline',
+    status: verificationResponse.status,
+    url: verificationResponse.url,
+    body: redact(verificationResponse.text.slice(0, 4000)),
+  });
+
+  const entryToken = findTokenValue(parsed?.data);
+  if (entryToken) {
+    await appendCapture({
+      ts: new Date().toISOString(),
+      kind: 'entry-token-detected',
+      requestToken: lastOtpRequestToken,
+    });
+    await replayAccessTokenWithEntryToken(page, entryToken);
   }
 
   await page.waitForLoadState('domcontentloaded').catch(() => undefined);
