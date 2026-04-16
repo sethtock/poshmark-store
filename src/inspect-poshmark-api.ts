@@ -152,6 +152,12 @@ async function wireCapture(page: Page): Promise<void> {
   });
 }
 
+function resolveOtpCode(rl: ReturnType<typeof createInterface>): Promise<string> {
+  const provided = process.env.POSHMARK_OTP ?? process.argv[2];
+  if (provided && provided.trim()) return Promise.resolve(provided.trim());
+  return rl.question('Enter the 6-digit Poshmark SMS code: ').then((value) => value.trim());
+}
+
 async function maybeHandlePhoneVerification(page: Page, rl: ReturnType<typeof createInterface>): Promise<void> {
   const bodyText = (await page.textContent('body').catch(() => ''))?.toLowerCase() ?? '';
   const hasPhoneGate = bodyText.includes('text me') || bodyText.includes('verification code') || bodyText.includes('phone number');
@@ -168,8 +174,8 @@ async function maybeHandlePhoneVerification(page: Page, rl: ReturnType<typeof cr
     await page.waitForTimeout(2000);
   }
 
-  const code = await rl.question('Enter the 6-digit Poshmark SMS code: ');
-  await numericInput.fill(code.trim());
+  const code = await resolveOtpCode(rl);
+  await numericInput.fill(code);
 
   if (!lastOtpRequestToken) {
     await appendCapture({
@@ -194,7 +200,7 @@ async function maybeHandlePhoneVerification(page: Page, rl: ReturnType<typeof cr
     });
     const text = await resp.text();
     return { status: resp.status, url: resp.url, text };
-  }, { otp: code.trim(), requestToken: lastOtpRequestToken });
+  }, { otp: code, requestToken: lastOtpRequestToken });
 
   const parsed = tryParseJson(verificationResponse.text);
   await appendCapture({
