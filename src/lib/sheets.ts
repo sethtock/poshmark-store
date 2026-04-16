@@ -39,11 +39,11 @@ export function getSpreadsheetId(): string {
 }
 
 const HEADERS = [
-  'Item ID', 'Date Added', 'Folder Name', 'Drive Folder', 'Description', 'Brand', 'Size',
+  'Item ID', 'Date Added', 'Folder Name', 'Drive Folder', 'Title', 'Description', 'Brand', 'Size',
   'Condition', 'Category', 'Photo Links', 'Initial Price', 'Current Price',
   'Poshmark URL', 'Status', 'Pricing Reasoning', 'Confidence', 'Notes',
 ];
-const HEADER_COUNT = 17; // A through Q
+const HEADER_COUNT = 18; // A through R
 
 const STATUS_COLORS: Record<ItemStatus, string> = {
   pending_review: '#FFF3CD',
@@ -76,7 +76,7 @@ export async function createSpreadsheet(sheets: sheets_v4.Sheets, title: string)
     requestBody: {
       properties: { title },
       sheets: [
-        { properties: { title: 'All Items', sheetType: 'GRID', gridProperties: { rowCount: 1000, columnCount: 17 } } },
+        { properties: { title: 'All Items', sheetType: 'GRID', gridProperties: { rowCount: 1000, columnCount: 18 } } },
         { properties: { title: 'Summary', sheetType: 'GRID', gridProperties: { rowCount: 50, columnCount: 6 } } },
       ],
     },
@@ -92,7 +92,7 @@ export async function createSpreadsheet(sheets: sheets_v4.Sheets, title: string)
     const sheetId = allItemsSheet.properties.sheetId;
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'All Items!A1:Q1',
+      range: 'All Items!A1:R1',
       valueInputOption: 'RAW',
       requestBody: { values: [HEADERS] },
     });
@@ -194,6 +194,7 @@ export async function writeItem(sheets: sheets_v4.Sheets, spreadsheetId: string,
     item.dateAdded.split('T')[0],
     item.folderName,
     driveFolderUrl,
+    item.title,
     item.description,
     item.brand ?? '',
     item.size ?? '',
@@ -211,7 +212,7 @@ export async function writeItem(sheets: sheets_v4.Sheets, spreadsheetId: string,
 
   const response = await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'All Items!A:Q',
+    range: 'All Items!A:R',
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
@@ -238,6 +239,7 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
     item.dateAdded.split('T')[0],
     item.folderName,
     driveFolderUrl,
+    item.title,
     item.description,
     item.brand ?? '',
     item.size ?? '',
@@ -255,7 +257,7 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `All Items!A${actualRow}:Q${actualRow}`,
+    range: `All Items!A${actualRow}:R${actualRow}`,
     valueInputOption: 'RAW',
     requestBody: { values: [row] },
   });
@@ -271,7 +273,7 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
         requests: [
           {
             repeatCell: {
-              range: { sheetId: allItemsSheetId, startRowIndex: actualRow - 1, endRowIndex: actualRow, startColumnIndex: 13, endColumnIndex: 14 },
+              range: { sheetId: allItemsSheetId, startRowIndex: actualRow - 1, endRowIndex: actualRow, startColumnIndex: 14, endColumnIndex: 15 },
               cell: { userEnteredFormat: { backgroundColor: rgb } },
               fields: 'userEnteredFormat(backgroundColor)',
             },
@@ -293,15 +295,15 @@ function hexToRgb(hex: string): { red: number; green: number; blue: number } {
 export async function refreshSummary(sheets: sheets_v4.Sheets, spreadsheetId: string) {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'All Items!A2:Q',
+    range: 'All Items!A2:R',
     valueRenderOption: 'FORMATTED_VALUE',
   });
 
   const rows = response.data.values ?? [];
   const allItems = rows.map((r) => ({
-    status: r[13] as ItemStatus,
-    price: parseFloat(r[11]) || 0,
-    initialPrice: parseFloat(r[10]) || 0,
+    status: r[14] as ItemStatus,
+    price: parseFloat(r[12]) || 0,
+    initialPrice: parseFloat(r[11]) || 0,
   }));
 
   const total = allItems.length;

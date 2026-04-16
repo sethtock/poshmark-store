@@ -50,6 +50,12 @@ export function generateListingTitle(item: Pick<Item, 'brand' | 'category' | 'si
   return parts.join(' ').slice(0, 80) || `Kids Item ${item.id}`;
 }
 
+export function getListingTitle(item: Pick<Item, 'title' | 'brand' | 'category' | 'size' | 'color' | 'id'>): string {
+  const explicitTitle = item.title?.trim();
+  if (explicitTitle) return explicitTitle;
+  return generateListingTitle(item);
+}
+
 export function generateListingDescription(item: Pick<Item, 'condition'>): string {
   const conditionLine = {
     nwt: 'New with tags, never worn, and in perfect condition.',

@@ -187,11 +187,42 @@ export async function createListing(listing: ListingData): Promise<string> {
     await clickIfVisible(page, 'button:has-text("Got it!")');
     await clickIfVisible(page, 'button:has-text("Ok")');
 
-    const titleInput = page.locator('input[placeholder="What are you selling? (required)"]').first();
-    await titleInput.fill(listing.title.substring(0, 100));
+    // Use evaluate-based fill to properly trigger React controlled-input events
+    const titleVal = listing.title.substring(0, 100);
+    await page.evaluate((t: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const win = globalThis as any;
+      const doc = win.document;
+      if (!doc) return;
+      const input: any = doc.querySelector('input[placeholder="What are you selling? (required)"]');
+      if (input) {
+        const proto = win.HTMLInputElement?.prototype;
+        const setter = proto && Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (setter) setter.call(input, t);
+        else input.value = t;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }, titleVal);
+    await page.waitForTimeout(300);
 
-    const descInput = page.locator('textarea[placeholder="Describe it! (required)"]').first();
-    await descInput.fill(listing.description);
+    const descVal = listing.description;
+    await page.evaluate((t: string) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const win = globalThis as any;
+      const doc = win.document;
+      if (!doc) return;
+      const textarea: any = doc.querySelector('textarea[placeholder="Describe it! (required)"]');
+      if (textarea) {
+        const proto = win.HTMLTextAreaElement?.prototype;
+        const setter = proto && Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+        if (setter) setter.call(textarea, t);
+        else textarea.value = t;
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }, descVal);
+    await page.waitForTimeout(300);
 
     if (listing.brand) {
       const brandInput = page.locator('input[placeholder="Enter the Brand/Designer"]').first();
@@ -207,25 +238,49 @@ export async function createListing(listing: ListingData): Promise<string> {
     await page.waitForTimeout(300);
     if (mappedCategory.subcategory) {
       await page.locator('div.listing-editor__category-container li', { hasText: mappedCategory.subcategory }).first().click();
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(500);
+    } else {
+      // No subcategory — dismiss the open picker and wait for it to close
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(500);
     }
 
     const mappedSize = mapSize(listing.size);
     if (mappedSize) {
+      // Scroll the size dropdown into view and force-click through any overlay
       const sizeDropdown = page.locator('div[data-test="dropdown"][selectortestlocator="size"]').first();
-      await sizeDropdown.click();
-      await page.waitForTimeout(300);
-      if (mappedSize.tab !== 'Baby') {
-        await page.getByText(mappedSize.tab, { exact: true }).click();
-        await page.waitForTimeout(300);
+      await sizeDropdown.scrollIntoViewIfNeeded();
+      await sizeDropdown.click({ force: true });
+      await page.waitForTimeout(500);
+      if (mappedSize.tab !== 'Baby' && mappedSize.tab !== 'Custom') {
+        // Try to click the tab first, but don't fail if it's not there
+        const tabBtn = page.getByText(mappedSize.tab, { exact: true });
+        if (await tabBtn.isVisible().catch(() => false)) {
+          await tabBtn.click();
+          await page.waitForTimeout(300);
+        }
       }
 
       if (mappedSize.tab === 'Custom') {
-        await page.getByText('Custom', { exact: true }).click();
+        const customTab = page.getByText('Custom', { exact: true });
+        if (await customTab.isVisible().catch(() => false)) {
+          await customTab.click();
+        }
         await page.locator('input[id^="customSizeInput"]').first().fill(mappedSize.label);
         await page.locator('button:has-text("Save")').first().click();
       } else {
-        await page.locator(`button:has-text("${mappedSize.label}")`).first().click();
+        // Try to find the size button directly (it may be in Baby tab or already visible)
+        const sizeBtn = page.locator(`button:has-text("${mappedSize.label}")`).first();
+        if (await sizeBtn.isVisible().catch(() => false)) {
+          await sizeBtn.click();
+        } else {
+          // Fallback: type into a size search input if one exists
+          const sizeInput = page.locator('input[placeholder*="size" i], input[placeholder*="Size"]').first();
+          if (await sizeInput.isVisible().catch(() => false)) {
+            await sizeInput.fill(mappedSize.label);
+            await page.waitForTimeout(300);
+          }
+        }
       }
 
       await clickIfVisible(page, 'button:has-text("Done"):visible');

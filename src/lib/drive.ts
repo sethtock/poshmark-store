@@ -186,6 +186,7 @@ export async function folderToItem(
     folderId: folder.id,
     photoUrls,
     localPhotoPaths,
+    title: '',
     description: '',
     brand: null,
     size: null,

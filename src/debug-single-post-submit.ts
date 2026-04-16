@@ -8,7 +8,7 @@ import type { Item } from './types.js';
 import axios from 'axios';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { generateListingTitle } from './lib/listing-text.js';
+import { getListingTitle } from './lib/listing-text.js';
 
 loadEnv();
 
@@ -74,9 +74,9 @@ async function downloadToTemp(url: string): Promise<string> {
 async function getFirstReadyItem(): Promise<Item> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
-  const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'All Items!A2:Q', valueRenderOption: 'FORMATTED_VALUE' });
+  const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'All Items!A2:R', valueRenderOption: 'FORMATTED_VALUE' });
   const rows = response.data.values ?? [];
-  const row = rows.find((r) => r[13] === 'ready_to_post');
+  const row = rows.find((r) => r[14] === 'ready_to_post');
   if (!row) throw new Error('No ready_to_post items found');
   const folderUrl = row[3] ?? '';
   const folderIdMatch = folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/);
@@ -90,20 +90,21 @@ async function getFirstReadyItem(): Promise<Item> {
     dateAdded: row[1] ? new Date(`${row[1]}T00:00:00.000Z`).toISOString() : new Date().toISOString(),
     folderName: row[2] ?? '',
     folderId,
-    description: row[4] ?? '',
-    brand: row[5] || null,
-    size: row[6] || null,
-    condition: (row[7] as Item['condition']) || 'good',
-    category: row[8] || null,
+    title: row[4] ?? '',
+    description: row[5] ?? '',
+    brand: row[6] || null,
+    size: row[7] || null,
+    condition: (row[8] as Item['condition']) || 'good',
+    category: row[9] || null,
     photoUrls,
     localPhotoPaths: [],
-    initialPrice: row[10] ? Number(row[10]) : null,
-    currentPrice: row[11] ? Number(row[11]) : null,
-    poshmarkUrl: row[12] || null,
-    status: (row[13] as Item['status']) || 'ready_to_post',
-    pricingReasoning: row[14] ?? '',
-    pricingConfidence: (row[15] as Item['pricingConfidence']) || 'medium',
-    notes: row[16] ?? '',
+    initialPrice: row[11] ? Number(row[11]) : null,
+    currentPrice: row[12] ? Number(row[12]) : null,
+    poshmarkUrl: row[13] || null,
+    status: (row[14] as Item['status']) || 'ready_to_post',
+    pricingReasoning: row[15] ?? '',
+    pricingConfidence: (row[16] as Item['pricingConfidence']) || 'medium',
+    notes: row[17] ?? '',
     color: null,
     lastUpdated: new Date().toISOString(),
   };
@@ -111,7 +112,7 @@ async function getFirstReadyItem(): Promise<Item> {
 
 async function main(): Promise<void> {
   const item = await getFirstReadyItem();
-  const title = generateListingTitle(item);
+  const title = getListingTitle(item);
   const price = item.currentPrice ?? item.initialPrice ?? 0;
   const mappedCategory = mapCategory(item.category ?? 'Kids');
   const mappedSize = mapSize(item.size);

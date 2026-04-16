@@ -6,6 +6,7 @@ import { getSheetsClient, getSpreadsheetId, readExistingIds, writeItem, updateIt
 import { analyzeItemPhotos } from '../lib/vision.js';
 import { analyzeItem } from '../lib/pricing.js';
 import { createListing, closeBrowser } from '../lib/poshmark.js';
+import { generateListingTitle } from '../lib/listing-text.js';
 import { notifyPendingReview, notifyItemPosted, notifyReadyToPost, notifyError, notifyRunSummary } from '../lib/telegram.js';
 import type { Item } from '../types.js';
 
@@ -68,6 +69,7 @@ export async function run(): Promise<void> {
       }
 
       const analysis = await analyzeItem(item);
+      item.title = generateListingTitle(item);
       item.description = analysis.item.description;
       item.initialPrice = analysis.pricing.price;
       item.currentPrice = analysis.pricing.price;
@@ -111,4 +113,3 @@ export async function run(): Promise<void> {
 
   console.log('✅ Run complete:', JSON.stringify(results, null, 2));
 }
-

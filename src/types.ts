@@ -15,6 +15,7 @@ export interface Item {
   folderId: string;      // Google Drive folder ID
   photoUrls: string[];   // Drive photo URLs (for Sheets)
   localPhotoPaths: string[]; // Local JPEG file paths (for vision analysis)
+  title: string;         // Suggested Poshmark listing title
   description: string;   // AI-generated Poshmark listing description
   brand: string | null;
   size: string | null;
