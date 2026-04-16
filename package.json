@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "test:post": "tsx src/test-post.ts",
+    "inspect:poshmark-api": "tsx src/inspect-poshmark-api.ts",
     "test": "vitest",
     "test:ci": "vitest run --reporter=default",
     "test:watch": "vitest --watch"

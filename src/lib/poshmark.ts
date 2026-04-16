@@ -8,7 +8,10 @@ let browser: Browser | null = null;
 
 export async function getBrowser(): Promise<Browser> {
   if (!browser || !browser.isConnected()) {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+    });
   }
   return browser;
 }
@@ -25,19 +28,33 @@ async function login(page: Page): Promise<void> {
   const password = process.env.POSHMARK_PASSWORD;
   if (!email || !password) throw new Error('POSHMARK_EMAIL / POSHMARK_PASSWORD not set');
 
-  await page.goto(`${POSHMARK_URL}/login`);
-  await page.waitForLoadState('networkidle');
+  await page.goto(`${POSHMARK_URL}/dashboard`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1500);
 
-  // Fill in credentials
-  await page.fill('input[name="username"]', email);
-  await page.fill('input[name="password"]', password);
-  await page.click('button[type="submit"]');
+  if (await pageLooksLoggedIn(page)) {
+    await savePoshmarkSession(page.context());
+    return;
+  }
 
-  // Wait for login to complete — either redirect or dashboard
-  await page.waitForURL('**/dashboard**', { timeout: 15000 }).catch(() => {
-    // Also accept landing on the main feed
-  });
-  await page.waitForLoadState('networkidle');
+  await page.goto(`${POSHMARK_URL}/login`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1000);
+
+  const emailInput = page.locator('input[name="login_form[username_email]"], input[name="username_email"], input[type="email"], input[name="email"]').first();
+  const passwordInput = page.locator('input[name="login_form[password]"], input[name="password"], input[type="password"]').first();
+  const submitButton = page.locator('button[type="submit"], button:has-text("Log In"), button:has-text("Login")').first();
+
+  await emailInput.fill(email);
+  await passwordInput.fill(password);
+  await submitButton.click();
+
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForTimeout(2500);
+
+  if (!(await pageLooksLoggedIn(page))) {
+    throw new Error('Poshmark login did not complete. A saved session or interactive verification may be required.');
+  }
+
+  await savePoshmarkSession(page.context());
 }
 
 async function uploadPhotos(page: Page, photoUrls: string[]): Promise<void> {
@@ -62,10 +79,11 @@ async function uploadPhotos(page: Page, photoUrls: string[]): Promise<void> {
   }
 }
 
-import { writeFile, unlink } from 'fs/promises';
+import { writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import axios from 'axios';
+import { createPoshmarkContext, pageLooksLoggedIn, savePoshmarkSession } from './poshmark-session.js';
 
 async function downloadToTemp(url: string): Promise<string> {
   const response = await axios.get(url, { responseType: 'arraybuffer' });
@@ -87,9 +105,7 @@ interface ListingData {
 
 export async function createListing(listing: ListingData): Promise<string> {
   const browser = await getBrowser();
-  const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
-  });
+  const context = await createPoshmarkContext(browser);
   const page = await context.newPage();
 
   try {
@@ -187,7 +203,7 @@ export async function createListing(listing: ListingData): Promise<string> {
 /** Get listing status by URL (checks if it's still active, sold, etc.) */
 export async function checkListingStatus(listingUrl: string): Promise<{ status: 'active' | 'sold' | 'not_found'; price: number | null }> {
   const browser = await getBrowser();
-  const context = await browser.newContext();
+  const context = await createPoshmarkContext(browser);
   const page = await context.newPage();
 
   try {

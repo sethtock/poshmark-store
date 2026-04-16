@@ -97,7 +97,8 @@ async function login(page: Page): Promise<void> {
     if (url.includes('/login')) {
       // Check if there's a verification screen
       const bodyText = await page.textContent('body').catch(() => '');
-      if (bodyText.toLowerCase().includes('verify') || bodyText.toLowerCase().includes('email')) {
+      const normalizedBodyText = (bodyText ?? '').toLowerCase();
+      if (normalizedBodyText.includes('verify') || normalizedBodyText.includes('email')) {
         console.log('⚠️ Poshmark is asking for email verification. Check your email and complete the verification.');
         // Wait for manual verification
         await page.waitForURL('**/dashboard**', { timeout: 120000 });
