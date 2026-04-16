@@ -12,6 +12,9 @@ loadEnv();
 
 const CAPTURE_PATH = new URL('../data/poshmark-api-capture.jsonl', import.meta.url).pathname;
 
+let lastAccessTokenPayload: Record<string, unknown> | null = null;
+let lastOtpRequestToken: string | null = null;
+
 function redact(text: string | null | undefined): string {
   if (!text) return '';
   return text
@@ -24,6 +27,72 @@ function redact(text: string | null | undefined): string {
 async function appendCapture(entry: unknown): Promise<void> {
   await mkdir(dirname(CAPTURE_PATH), { recursive: true });
   await appendFile(CAPTURE_PATH, `${JSON.stringify(entry)}\n`);
+}
+
+function tryParseJson(text: string | null | undefined): Record<string, unknown> | null {
+  if (!text) return null;
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function findTokenValue(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof child === 'string' && key.toLowerCase().includes('token')) return child;
+    const nested = findTokenValue(child);
+    if (nested) return nested;
+  }
+  return null;
+}
+
+async function replayAccessTokenWithEntryToken(page: Page, entryToken: string): Promise<boolean> {
+  if (!lastAccessTokenPayload) return false;
+
+  const csrfToken = await page.locator('#csrftoken').getAttribute('content').catch(() => null);
+  const candidateFields = ['entry_token', 'entryToken', 'phone_registration_entry_token', 'phoneRegistrationEntryToken'];
+
+  for (const field of candidateFields) {
+    const payload: Record<string, unknown> = {
+      ...lastAccessTokenPayload,
+      [field]: entryToken,
+    };
+
+    const response = await page.evaluate(async ({ payload, csrfToken }) => {
+      const resp = await fetch('/vm-rest/auth/users/access_token?pm_version=2026.15.01', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+        },
+        body: JSON.stringify(payload),
+      });
+      const text = await resp.text();
+      return {
+        status: resp.status,
+        ok: resp.ok,
+        text,
+      };
+    }, { payload, csrfToken });
+
+    await appendCapture({
+      ts: new Date().toISOString(),
+      kind: 'access-token-retry',
+      field,
+      status: response.status,
+      body: redact(response.text.slice(0, 4000)),
+    });
+
+    const parsed = tryParseJson(response.text);
+    if (response.ok && parsed && !parsed.error) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function shouldCapture(url: string): boolean {
@@ -39,6 +108,11 @@ function shouldCapture(url: string): boolean {
 async function wireCapture(page: Page): Promise<void> {
   page.on('request', async (request: Request) => {
     const url = request.url();
+    const postData = request.postData();
+    const parsed = tryParseJson(postData);
+    if (url.includes('/auth/users/access_token') && parsed) {
+      lastAccessTokenPayload = parsed;
+    }
     if (!shouldCapture(url)) return;
     await appendCapture({
       ts: new Date().toISOString(),
@@ -46,26 +120,33 @@ async function wireCapture(page: Page): Promise<void> {
       method: request.method(),
       resourceType: request.resourceType(),
       url,
-      postData: redact(request.postData()),
+      postData: redact(postData),
     });
   });
 
   page.on('response', async (response: Response) => {
     const url = response.url();
-    if (!shouldCapture(url)) return;
     const headers = response.headers();
     const contentType = headers['content-type'] ?? '';
-    let body = '';
+    let rawBody = '';
     if (contentType.includes('application/json') || contentType.includes('text/')) {
-      body = redact((await response.text().catch(() => '')).slice(0, 4000));
+      rawBody = (await response.text().catch(() => '')).slice(0, 4000);
     }
+    if (url.includes('/auth/otp_requests')) {
+      const parsed = tryParseJson(rawBody);
+      const token = parsed?.data && typeof parsed.data === 'object'
+        ? (parsed.data as Record<string, unknown>).request_token
+        : null;
+      if (typeof token === 'string') lastOtpRequestToken = token;
+    }
+    if (!shouldCapture(url)) return;
     await appendCapture({
       ts: new Date().toISOString(),
       kind: 'response',
       status: response.status(),
       url,
       contentType,
-      body,
+      body: redact(rawBody),
     });
   });
 }
@@ -75,7 +156,7 @@ async function maybeHandlePhoneVerification(page: Page, rl: ReturnType<typeof cr
   const hasPhoneGate = bodyText.includes('text me') || bodyText.includes('verification code') || bodyText.includes('phone number');
   if (!hasPhoneGate) return;
 
-  const numericInput = page.locator('input[type="tel"], input[inputmode="numeric"], input[placeholder*="phone" i], input[placeholder*="code" i]').first();
+  const numericInput = page.locator('input[name="otp"], input[type="number"], input[type="tel"], input[inputmode="numeric"], input[placeholder*="phone" i], input[placeholder*="code" i]').first();
   const textMeButton = page.locator('button:has-text("Text me"), button:has-text("Text Me")').first();
 
   if (await textMeButton.isVisible().catch(() => false)) {
@@ -88,10 +169,47 @@ async function maybeHandlePhoneVerification(page: Page, rl: ReturnType<typeof cr
   const code = await rl.question('Enter the 6-digit Poshmark SMS code: ');
   await numericInput.fill(code.trim());
 
-  const okButton = page.locator('button:has-text("Ok"), button:has-text("OK"), button:has-text("Verify"), button:has-text("Continue")').first();
-  await okButton.click();
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(2500);
+  const submitButton = page.getByRole('button', { name: 'Done', exact: true })
+    .or(page.getByRole('button', { name: 'Verify', exact: true }))
+    .or(page.getByRole('button', { name: 'Continue', exact: true }))
+    .first();
+
+  const verificationResponse = page.waitForResponse(
+    (response) => response.url().includes('/auth/entry_tokens'),
+    { timeout: 15000 },
+  ).catch(() => null);
+
+  if (await submitButton.isVisible().catch(() => false)) {
+    await submitButton.click();
+  } else {
+    await numericInput.press('Enter');
+  }
+
+  const verifyResp = await verificationResponse;
+  if (verifyResp) {
+    const body = await verifyResp.text().catch(() => '');
+    const parsed = tryParseJson(body);
+    await appendCapture({
+      ts: new Date().toISOString(),
+      kind: 'verification-response-inline',
+      status: verifyResp.status(),
+      url: verifyResp.url(),
+      body: redact(body.slice(0, 4000)),
+    });
+
+    const entryToken = findTokenValue(parsed?.data);
+    if (entryToken) {
+      await appendCapture({
+        ts: new Date().toISOString(),
+        kind: 'entry-token-detected',
+        requestToken: lastOtpRequestToken,
+      });
+      await replayAccessTokenWithEntryToken(page, entryToken);
+    }
+  }
+
+  await page.waitForLoadState('domcontentloaded').catch(() => undefined);
+  await page.waitForTimeout(4000);
 }
 
 async function ensureLoggedInForCreate(page: Page, rl: ReturnType<typeof createInterface>): Promise<void> {
@@ -114,14 +232,25 @@ async function ensureLoggedInForCreate(page: Page, rl: ReturnType<typeof createI
   await passwordInput.fill(password);
   await submitButton.click();
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(3000);
 
-  await page.goto('https://poshmark.com/modal/listing/create', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(2000);
   await maybeHandlePhoneVerification(page, rl);
-  await page.waitForTimeout(2000);
+  await page.waitForTimeout(3000);
 
   if (!(await pageLooksLoggedIn(page))) {
+    await page.goto('https://poshmark.com/dashboard', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => undefined);
+    await page.waitForTimeout(3000);
+  }
+
+  if (!(await pageLooksLoggedIn(page))) {
+    const bodyText = (await page.textContent('body').catch(() => '')) ?? '';
+    await appendCapture({
+      ts: new Date().toISOString(),
+      kind: 'post-verification-state',
+      url: page.url(),
+      title: await page.title().catch(() => ''),
+      body: redact(bodyText.slice(0, 4000)),
+    });
     throw new Error('Still not authenticated after login/verification');
   }
 
