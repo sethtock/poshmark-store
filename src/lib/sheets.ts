@@ -230,7 +230,7 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
   const rowIndex = rows.findIndex((r) => r[0] === item.id);
   if (rowIndex === -1) throw new Error(`Item ${item.id} not found in sheet`);
 
-  const actualRow = rowIndex + 2; // 1-indexed + header row
+  const actualRow = rowIndex + 1; // A:A includes the header row at A1
 
   const driveFolderUrl = `https://drive.google.com/drive/folders/${item.folderId}`;
   const row = [
