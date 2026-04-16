@@ -1,4 +1,4 @@
-import { appendFile, mkdir, writeFile } from 'fs/promises';
+import { appendFile, mkdir, readFile, rm, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import { createInterface } from 'readline/promises';
 import { stdin as input, stdout as output } from 'process';
@@ -11,6 +11,7 @@ import { createPoshmarkContext, getStorageStatePath, pageLooksLoggedIn, savePosh
 loadEnv();
 
 const CAPTURE_PATH = new URL('../data/poshmark-api-capture.jsonl', import.meta.url).pathname;
+const PENDING_AUTH_PATH = new URL('../data/poshmark-pending-auth.json', import.meta.url).pathname;
 
 let lastAccessTokenPayload: Record<string, unknown> | null = null;
 let lastOtpRequestToken: string | null = null;
@@ -27,6 +28,37 @@ function redact(text: string | null | undefined): string {
 async function appendCapture(entry: unknown): Promise<void> {
   await mkdir(dirname(CAPTURE_PATH), { recursive: true });
   await appendFile(CAPTURE_PATH, `${JSON.stringify(entry)}\n`);
+}
+
+async function savePendingAuth(): Promise<void> {
+  if (!lastAccessTokenPayload || !lastOtpRequestToken) return;
+  await mkdir(dirname(PENDING_AUTH_PATH), { recursive: true });
+  await writeFile(PENDING_AUTH_PATH, JSON.stringify({
+    accessTokenPayload: lastAccessTokenPayload,
+    requestToken: lastOtpRequestToken,
+    savedAt: new Date().toISOString(),
+  }, null, 2));
+}
+
+async function loadPendingAuth(): Promise<{ accessTokenPayload: Record<string, unknown>, requestToken: string } | null> {
+  try {
+    const raw = await readFile(PENDING_AUTH_PATH, 'utf8');
+    const parsed = JSON.parse(raw) as {
+      accessTokenPayload?: Record<string, unknown>;
+      requestToken?: string;
+    };
+    if (!parsed?.accessTokenPayload || !parsed?.requestToken) return null;
+    return {
+      accessTokenPayload: parsed.accessTokenPayload,
+      requestToken: parsed.requestToken,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function clearPendingAuth(): Promise<void> {
+  await rm(PENDING_AUTH_PATH, { force: true }).catch(() => undefined);
 }
 
 function tryParseJson(text: string | null | undefined): Record<string, unknown> | null {
@@ -95,6 +127,52 @@ async function replayAccessTokenWithEntryToken(page: Page, entryToken: string): 
   return false;
 }
 
+async function submitOtpAndReplay(page: Page, code: string): Promise<boolean> {
+  if (!lastOtpRequestToken) {
+    await appendCapture({
+      ts: new Date().toISOString(),
+      kind: 'missing-request-token',
+      url: page.url(),
+    });
+    throw new Error('Missing Poshmark OTP request token');
+  }
+
+  const verificationResponse = await page.evaluate(async ({ otp, requestToken }) => {
+    const doc = (globalThis as { document?: { querySelector: (selector: string) => { content?: string } | null } }).document;
+    const csrfToken = doc?.querySelector('#csrftoken')?.content ?? undefined;
+    const resp = await fetch('/vm-rest/auth/entry_tokens?pm_version=2026.15.01', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'content-type': 'application/json',
+        ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+      },
+      body: JSON.stringify({ otp, request_token: requestToken }),
+    });
+    const text = await resp.text();
+    return { status: resp.status, url: resp.url, text };
+  }, { otp: code, requestToken: lastOtpRequestToken });
+
+  const parsed = tryParseJson(verificationResponse.text);
+  await appendCapture({
+    ts: new Date().toISOString(),
+    kind: 'verification-response-inline',
+    status: verificationResponse.status,
+    url: verificationResponse.url,
+    body: redact(verificationResponse.text.slice(0, 4000)),
+  });
+
+  const entryToken = findTokenValue(parsed?.data);
+  if (!entryToken) return false;
+
+  await appendCapture({
+    ts: new Date().toISOString(),
+    kind: 'entry-token-detected',
+    requestToken: lastOtpRequestToken,
+  });
+  return replayAccessTokenWithEntryToken(page, entryToken);
+}
+
 function shouldCapture(url: string): boolean {
   return url.includes('poshmark.com') && (
     url.includes('/login') ||
@@ -158,6 +236,19 @@ function resolveOtpCode(rl: ReturnType<typeof createInterface>): Promise<string>
   return rl.question('Enter the 6-digit Poshmark SMS code: ').then((value) => value.trim());
 }
 
+async function requestPhoneVerification(page: Page): Promise<boolean> {
+  const bodyText = (await page.textContent('body').catch(() => ''))?.toLowerCase() ?? '';
+  const hasPhoneGate = bodyText.includes('text me') || bodyText.includes('verification code') || bodyText.includes('phone number');
+  if (!hasPhoneGate) return false;
+  await savePendingAuth();
+  await appendCapture({
+    ts: new Date().toISOString(),
+    kind: 'pending-auth-saved',
+    requestToken: lastOtpRequestToken,
+  });
+  return true;
+}
+
 async function maybeHandlePhoneVerification(page: Page, rl: ReturnType<typeof createInterface>): Promise<void> {
   const bodyText = (await page.textContent('body').catch(() => ''))?.toLowerCase() ?? '';
   const hasPhoneGate = bodyText.includes('text me') || bodyText.includes('verification code') || bodyText.includes('phone number');
@@ -176,50 +267,7 @@ async function maybeHandlePhoneVerification(page: Page, rl: ReturnType<typeof cr
 
   const code = await resolveOtpCode(rl);
   await numericInput.fill(code);
-
-  if (!lastOtpRequestToken) {
-    await appendCapture({
-      ts: new Date().toISOString(),
-      kind: 'missing-request-token',
-      url: page.url(),
-    });
-    throw new Error('Missing Poshmark OTP request token');
-  }
-
-  const verificationResponse = await page.evaluate(async ({ otp, requestToken }) => {
-    const doc = (globalThis as { document?: { querySelector: (selector: string) => { content?: string } | null } }).document;
-    const csrfToken = doc?.querySelector('#csrftoken')?.content ?? undefined;
-    const resp = await fetch('/vm-rest/auth/entry_tokens?pm_version=2026.15.01', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'content-type': 'application/json',
-        ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
-      },
-      body: JSON.stringify({ otp, request_token: requestToken }),
-    });
-    const text = await resp.text();
-    return { status: resp.status, url: resp.url, text };
-  }, { otp: code, requestToken: lastOtpRequestToken });
-
-  const parsed = tryParseJson(verificationResponse.text);
-  await appendCapture({
-    ts: new Date().toISOString(),
-    kind: 'verification-response-inline',
-    status: verificationResponse.status,
-    url: verificationResponse.url,
-    body: redact(verificationResponse.text.slice(0, 4000)),
-  });
-
-  const entryToken = findTokenValue(parsed?.data);
-  if (entryToken) {
-    await appendCapture({
-      ts: new Date().toISOString(),
-      kind: 'entry-token-detected',
-      requestToken: lastOtpRequestToken,
-    });
-    await replayAccessTokenWithEntryToken(page, entryToken);
-  }
+  await submitOtpAndReplay(page, code);
 
   await page.waitForLoadState('domcontentloaded').catch(() => undefined);
   await page.waitForTimeout(4000);
@@ -230,25 +278,49 @@ async function ensureLoggedInForCreate(page: Page, rl: ReturnType<typeof createI
   const password = process.env.POSHMARK_PASSWORD;
   if (!email || !password) throw new Error('POSHMARK_EMAIL / POSHMARK_PASSWORD not set');
 
+  const providedOtp = (process.env.POSHMARK_OTP ?? process.argv[2] ?? '').trim();
+  const pendingAuth = await loadPendingAuth();
+
   await page.goto('https://poshmark.com/dashboard', { waitUntil: 'domcontentloaded', timeout: 30000 });
   await page.waitForTimeout(1500);
-  if (await pageLooksLoggedIn(page)) return;
+  if (await pageLooksLoggedIn(page)) {
+    await clearPendingAuth();
+    return;
+  }
 
-  await page.goto('https://poshmark.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForTimeout(1000);
+  if (providedOtp && pendingAuth) {
+    lastAccessTokenPayload = pendingAuth.accessTokenPayload;
+    lastOtpRequestToken = pendingAuth.requestToken;
 
-  const emailInput = page.locator('input[name="login_form[username_email]"], input[name="username_email"], input[type="email"], input[name="email"]').first();
-  const passwordInput = page.locator('input[name="login_form[password]"], input[name="password"], input[type="password"]').first();
-  const submitButton = page.locator('button[type="submit"], button:has-text("Log In"), button:has-text("Login")').first();
+    await page.goto('https://poshmark.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(1000);
+    await submitOtpAndReplay(page, providedOtp);
+    await page.waitForTimeout(3000);
+  } else {
+    await page.goto('https://poshmark.com/login', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.waitForTimeout(1000);
 
-  await emailInput.fill(email);
-  await passwordInput.fill(password);
-  await submitButton.click();
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForTimeout(3000);
+    const emailInput = page.locator('input[name="login_form[username_email]"], input[name="username_email"], input[type="email"], input[name="email"]').first();
+    const passwordInput = page.locator('input[name="login_form[password]"], input[name="password"], input[type="password"]').first();
+    const submitButton = page.locator('button[type="submit"], button:has-text("Log In"), button:has-text("Login")').first();
 
-  await maybeHandlePhoneVerification(page, rl);
-  await page.waitForTimeout(3000);
+    await emailInput.fill(email);
+    await passwordInput.fill(password);
+    await submitButton.click();
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForTimeout(3000);
+
+    const pendingSaved = await requestPhoneVerification(page);
+    if (pendingSaved) {
+      if (providedOtp) {
+        throw new Error('A new Poshmark code was just generated, send me that fresh code and I will use the saved challenge without triggering another SMS.');
+      }
+      throw new Error('Poshmark SMS requested. Send me the fresh 6-digit code and I will submit it without generating another one.');
+    }
+
+    await maybeHandlePhoneVerification(page, rl);
+    await page.waitForTimeout(3000);
+  }
 
   if (!(await pageLooksLoggedIn(page))) {
     await page.goto('https://poshmark.com/dashboard', { waitUntil: 'domcontentloaded', timeout: 30000 }).catch(() => undefined);
@@ -267,6 +339,7 @@ async function ensureLoggedInForCreate(page: Page, rl: ReturnType<typeof createI
     throw new Error('Still not authenticated after login/verification');
   }
 
+  await clearPendingAuth();
   await savePoshmarkSession(page.context());
 }
 
