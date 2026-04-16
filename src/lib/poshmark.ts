@@ -66,18 +66,18 @@ async function uploadPhotos(page: Page, photoUrls: string[]): Promise<void> {
     });
   }
 
-  await page.waitForSelector('input[type="file"]', { timeout: 10000 });
+  await page.waitForSelector('#img-file-input, input[name="img-file-input"], input[type="file"]', { timeout: 10000 });
 
-  // Upload each photo
-  const fileInput = page.locator('input[type="file"]');
+  const uploadInput = page.locator('#img-file-input, input[name="img-file-input"], input[type="file"]').first();
+  const filePaths: string[] = [];
   for (const url of photoUrls) {
-    // Convert Drive URL to direct download
     const downloadUrl = url.replace('uc?export=view&id=', 'uc?export=download&id=');
     const filePath = await downloadToTemp(downloadUrl);
-    await fileInput.setInputFiles(filePath);
-    // Small delay between uploads
-    await page.waitForTimeout(500);
+    filePaths.push(filePath);
   }
+
+  await uploadInput.setInputFiles(filePaths);
+  await page.waitForTimeout(1500);
 }
 
 import { writeFile } from 'fs/promises';
@@ -104,6 +104,64 @@ interface ListingData {
   photoUrls: string[];
 }
 
+function mapCategory(category: string): { department: 'kids'; subcategory: string | null } {
+  const normalized = category.toLowerCase();
+
+  if (normalized.includes('dress')) return { department: 'kids', subcategory: 'Dresses' };
+  if (normalized.includes('shoe') || normalized.includes('boot') || normalized.includes('sandal')) return { department: 'kids', subcategory: 'Shoes' };
+  if (normalized.includes('pant') || normalized.includes('legging') || normalized.includes('short') || normalized.includes('bottom')) return { department: 'kids', subcategory: 'Bottoms' };
+  if (normalized.includes('jacket') || normalized.includes('coat')) return { department: 'kids', subcategory: 'Jackets & Coats' };
+  if (normalized.includes('set')) return { department: 'kids', subcategory: 'Matching Sets' };
+  if (normalized.includes('pajama')) return { department: 'kids', subcategory: 'Pajamas' };
+  if (normalized.includes('one piece') || normalized.includes('onesie')) return { department: 'kids', subcategory: 'One Pieces' };
+  if (normalized.includes('shirt') || normalized.includes('top') || normalized.includes('sweater')) return { department: 'kids', subcategory: 'Shirts & Tops' };
+
+  return { department: 'kids', subcategory: null };
+}
+
+function mapSize(size: string | null): { tab: 'Baby' | 'Girls' | 'Custom'; label: string } | null {
+  if (!size) return null;
+
+  const raw = size.trim();
+  const normalized = raw.toLowerCase().replace(/\s+/g, ' ');
+
+  const monthMap: Record<string, string> = {
+    '0-3 months': '0-3 Months',
+    '0 to 3 months': '0-3 Months',
+    '3-6 months': '3-6 Months',
+    '3 to 6 months': '3-6 Months',
+    '6-9 months': '6-9 Months',
+    '6 to 9 months': '6-9 Months',
+    '9-12 months': '9-12 Months',
+    '9 to 12 months': '9-12 Months',
+    '12-18 months': '12-18 Months',
+    '12 to 18 months': '12-18 Months',
+    '18-24 months': '18-24 Months',
+    '18 to 24 months': '18-24 Months',
+    '3 months': '3 Months',
+    '6 months': '6 Months',
+    '9 months': '9 Months',
+    '12 months': '12 Months',
+    '18 months': '18 Months',
+    '24 months': '24 Months',
+  };
+
+  if (monthMap[normalized]) return { tab: 'Baby', label: monthMap[normalized] };
+  if (/^\d+t$/i.test(raw)) return { tab: 'Girls', label: raw.toUpperCase() };
+  if (/^\d+[ck]?$/i.test(raw)) return { tab: 'Girls', label: raw.toUpperCase() };
+
+  return { tab: 'Custom', label: raw };
+}
+
+async function clickIfVisible(page: Page, selector: string): Promise<boolean> {
+  const locator = page.locator(selector).first();
+  if (await locator.isVisible().catch(() => false)) {
+    await locator.click();
+    return true;
+  }
+  return false;
+}
+
 export async function createListing(listing: ListingData): Promise<string> {
   const browser = await getBrowser();
   const context = await createPoshmarkContext(browser);
@@ -120,68 +178,93 @@ export async function createListing(listing: ListingData): Promise<string> {
     await uploadPhotos(page, listing.photoUrls);
     await page.waitForTimeout(2000);
 
-    // Fill title
-    const titleInput = page.locator('input[name="title"], input[placeholder*="title" i]');
+    await clickIfVisible(page, 'button:has-text("Got it!")');
+    await clickIfVisible(page, 'button:has-text("Ok")');
+
+    const titleInput = page.locator('input[placeholder="What are you selling? (required)"]').first();
     await titleInput.fill(listing.title.substring(0, 100));
 
-    // Fill description
-    const descInput = page.locator('textarea[name="description"], textarea[placeholder*="description" i]');
+    const descInput = page.locator('textarea[placeholder="Describe it! (required)"]').first();
     await descInput.fill(listing.description);
 
-    // Fill price
-    const priceInput = page.locator('input[name="price"], input[placeholder*="price" i]');
-    await priceInput.fill(String(listing.price));
-
-    // Select category (approximate — Poshmark has a category picker UI)
-    // This is one of the trickiest parts — the UI is React-based with cascaded dropdowns
-    // We'll try to click through it
-    try {
-      await page.click('button[data-test="category-picker"]', { timeout: 3000 });
-      await page.click('button[data-test="category-item"]:has-text("Kids")', { timeout: 2000 });
-      await page.waitForTimeout(500);
-    } catch {
-      // Category selection failed — log and continue
+    if (listing.brand) {
+      const brandInput = page.locator('input[placeholder="Enter the Brand/Designer"]').first();
+      await brandInput.fill(listing.brand);
+      await page.waitForTimeout(300);
     }
 
-    // Select condition
+    const mappedCategory = mapCategory(listing.category);
+    const categoryDropdown = page.locator('div.listing-editor__category-container div[data-test="dropdown"]').first();
+    await categoryDropdown.click();
+    await page.waitForTimeout(300);
+    await page.locator(`a[data-et-name="${mappedCategory.department}"]`).click();
+    await page.waitForTimeout(300);
+    if (mappedCategory.subcategory) {
+      await page.locator('div.listing-editor__category-container li', { hasText: mappedCategory.subcategory }).first().click();
+      await page.waitForTimeout(300);
+    }
+
+    const mappedSize = mapSize(listing.size);
+    if (mappedSize) {
+      const sizeDropdown = page.locator('div[data-test="dropdown"][selectortestlocator="size"]').first();
+      await sizeDropdown.click();
+      await page.waitForTimeout(300);
+      if (mappedSize.tab !== 'Baby') {
+        await page.getByText(mappedSize.tab, { exact: true }).click();
+        await page.waitForTimeout(300);
+      }
+
+      if (mappedSize.tab === 'Custom') {
+        await page.getByText('Custom', { exact: true }).click();
+        await page.locator('input[id^="customSizeInput"]').first().fill(mappedSize.label);
+        await page.locator('button:has-text("Save")').first().click();
+      } else {
+        await page.locator(`button:has-text("${mappedSize.label}")`).first().click();
+      }
+
+      await clickIfVisible(page, 'button:has-text("Done"):visible');
+      await page.waitForTimeout(300);
+    }
+
     try {
+      const conditionDropdown = page.locator('text=Select Condition').locator('xpath=ancestor::div[@data-test="dropdown"][1]');
+      await conditionDropdown.click();
+      await page.waitForTimeout(300);
       const conditionMap: Record<string, string> = {
-        like_new: 'New with Tags',
+        nwt: 'New With Tags (NWT)',
+        nwot: 'Like New',
+        like_new: 'Like New',
         good: 'Good',
         fair: 'Fair',
       };
       const conditionText = conditionMap[listing.condition] ?? 'Good';
-      await page.click(`button:has-text("${conditionText}")`, { timeout: 3000 });
+      await page.getByText(conditionText, { exact: true }).click();
+      await page.waitForTimeout(300);
     } catch {
       // Condition selection failed
     }
 
-    // Fill brand
-    if (listing.brand) {
-      try {
-        const brandInput = page.locator('input[name="brand"], input[placeholder*="brand" i]').first();
-        await brandInput.fill(listing.brand);
-        await page.waitForTimeout(500);
-      } catch {
-        // Brand field not found
-      }
+    const originalPriceInput = page.locator('input[data-vv-name="originalPrice"]').first();
+    const listingPriceInput = page.locator('input[data-vv-name="listingPrice"], input.listing-price-input').first();
+    const originalPrice = Math.max(listing.price, Math.round(listing.price * 1.5));
+    if (await originalPriceInput.isVisible().catch(() => false)) {
+      await originalPriceInput.fill(String(originalPrice));
     }
+    await listingPriceInput.fill(String(listing.price));
 
-    // Fill size
-    if (listing.size) {
-      try {
-        const sizeInput = page.locator('input[name="size"], input[placeholder*="size" i]').first();
-        await sizeInput.fill(listing.size);
-        await page.waitForTimeout(300);
-      } catch {
-        // Size field not found
-      }
-    }
+    await clickIfVisible(page, 'button:has-text("Yes"):visible');
+    await clickIfVisible(page, 'button:has-text("Done"):visible');
+    await clickIfVisible(page, 'button:has-text("Ok"):visible');
+    await clickIfVisible(page, 'button:has-text("Got it!"):visible');
 
-    // Submit listing
-    await page.click('button[data-test="submit-btn"], button:has-text("List"), button:has-text("Publish")', { timeout: 5000 });
+    await page.getByText('Next', { exact: true }).click();
+    await page.waitForTimeout(2500);
+
+    await clickIfVisible(page, 'button:has-text("Certify Listing")');
+    await page.waitForTimeout(1000);
+    await clickIfVisible(page, 'button:has-text("Certify")');
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(4000);
 
     // Capture the listing URL from the redirect
     const url = page.url();
@@ -195,7 +278,15 @@ export async function createListing(listing: ListingData): Promise<string> {
       return `${POSHMARK_URL}${listingLink}`;
     }
 
-    throw new Error('Could not determine listing URL after publish');
+    const visibleButtons = await page.locator('button:visible, a:visible').evaluateAll((els) =>
+      els.map((el) => ({
+        tag: el.tagName,
+        text: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120),
+        href: el.getAttribute('href'),
+      })).filter((x) => x.text || x.href).slice(0, 25),
+    ).catch(() => []);
+
+    throw new Error(`Could not determine listing URL after publish. Final URL: ${page.url()} Visible actions: ${JSON.stringify(visibleButtons)}`);
   } finally {
     await context.close();
   }
