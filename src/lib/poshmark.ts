@@ -71,12 +71,18 @@ async function uploadPhotos(page: Page, photoUrls: string[]): Promise<void> {
   const uploadInput = page.locator('#img-file-input, input[name="img-file-input"], input[type="file"]').first();
   const filePaths: string[] = [];
   for (const url of photoUrls) {
-    const downloadUrl = url.replace('uc?export=view&id=', 'uc?export=download&id=');
-    const filePath = await downloadToTemp(downloadUrl);
-    filePaths.push(filePath);
+    if (/^https?:\/\//i.test(url)) {
+      const downloadUrl = url.replace('uc?export=view&id=', 'uc?export=download&id=');
+      const filePath = await downloadToTemp(downloadUrl);
+      filePaths.push(filePath);
+    } else {
+      filePaths.push(url);
+    }
   }
 
   await uploadInput.setInputFiles(filePaths);
+  await page.waitForTimeout(1500);
+  await clickIfVisible(page, 'button:has-text("Apply"):visible');
   await page.waitForTimeout(1500);
 }
 
@@ -260,6 +266,8 @@ export async function createListing(listing: ListingData): Promise<string> {
     await page.getByText('Next', { exact: true }).click();
     await page.waitForTimeout(2500);
 
+    await clickIfVisible(page, 'button:has-text("List This Item"):visible');
+    await page.waitForTimeout(1500);
     await clickIfVisible(page, 'button:has-text("Certify Listing")');
     await page.waitForTimeout(1000);
     await clickIfVisible(page, 'button:has-text("Certify")');

@@ -1,7 +1,7 @@
 import { loadEnv } from './lib/env.js';
 import { getSheetsClient, getSpreadsheetId, refreshSummary, updateItem } from './lib/sheets.js';
 import { createListing, closeBrowser } from './lib/poshmark.js';
-import { getDriveClient, listPhotosInFolder, getPhotoUrl } from './lib/drive.js';
+import { getAuth, getDriveClient, listPhotosInFolder, getPhotoUrl, downloadAndConvertPhoto } from './lib/drive.js';
 import type { Item } from './types.js';
 
 loadEnv();
@@ -31,8 +31,10 @@ async function getFirstReadyItem(): Promise<Item> {
   if (!folderId) throw new Error(`Could not parse folder ID from ${folderUrl}`);
 
   const drive = await getDriveClient();
+  const auth = await getAuth();
   const photos = await listPhotosInFolder(drive, folderId);
   const photoUrls = photos.map((p) => getPhotoUrl(p.id));
+  const localPhotoPaths = await Promise.all(photos.map((photo) => downloadAndConvertPhoto(drive, photo, auth)));
 
   return {
     id: row[0] ?? '',
@@ -45,7 +47,7 @@ async function getFirstReadyItem(): Promise<Item> {
     condition: (row[7] as Item['condition']) || 'good',
     category: row[8] || null,
     photoUrls,
-    localPhotoPaths: [],
+    localPhotoPaths,
     initialPrice: row[10] ? Number(row[10]) : null,
     currentPrice: row[11] ? Number(row[11]) : null,
     poshmarkUrl: row[12] || null,
@@ -71,7 +73,7 @@ async function main(): Promise<void> {
     size: item.size,
     condition: item.condition,
     price: item.currentPrice ?? item.initialPrice ?? 0,
-    photoUrls: item.photoUrls,
+    photoUrls: item.localPhotoPaths.length ? item.localPhotoPaths : item.photoUrls,
   });
 
   console.log(`Posted: ${listingUrl}`);
