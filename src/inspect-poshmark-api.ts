@@ -4,7 +4,7 @@ import { createInterface } from 'readline/promises';
 import { stdin as input, stdout as output } from 'process';
 import type { Page, Request, Response } from 'playwright';
 import { loadEnv } from './lib/env.js';
-import { getBrowser } from './lib/poshmark.js';
+import { closeBrowser, getBrowser } from './lib/poshmark.js';
 import { PoshmarkApiClient } from './lib/poshmark-api.js';
 import { createPoshmarkContext, getStorageStatePath, pageLooksLoggedIn, savePoshmarkSession } from './lib/poshmark-session.js';
 
@@ -356,8 +356,16 @@ async function main(): Promise<void> {
     console.log('Checking saved Poshmark session...');
     await ensureLoggedInForCreate(page, rl);
 
-    await page.goto('https://poshmark.com/modal/listing/create', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto('https://poshmark.com/sell', { waitUntil: 'domcontentloaded', timeout: 30000 });
     await page.waitForTimeout(4000);
+
+    await appendCapture({
+      ts: new Date().toISOString(),
+      kind: 'post-login-page',
+      url: page.url(),
+      title: await page.title().catch(() => ''),
+      hasFileInput: await page.locator('input[type="file"]').count().catch(() => 0),
+    });
 
     const client = await PoshmarkApiClient.fromPage(page);
     const session = client.getSessionInfo();
@@ -375,6 +383,7 @@ async function main(): Promise<void> {
   } finally {
     rl.close();
     await context.close();
+    await closeBrowser();
   }
 }
 

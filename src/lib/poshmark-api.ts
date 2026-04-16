@@ -9,9 +9,13 @@ type InitialState = {
       id?: string;
       user_id?: string;
       username?: string;
-    } | null;
+    } | string | null;
   };
   csrftoken?: string;
+  ui?: {
+    uid?: string;
+    dh?: string;
+  };
 };
 
 export interface PoshmarkSessionInfo {
@@ -109,7 +113,12 @@ export async function getSessionInfoFromPage(page: Page): Promise<PoshmarkSessio
 
   const csrfToken = state?.csrftoken ?? csrfFromCookie;
   const identity = state?.auth?.identity ?? null;
-  const userId = identity?.user_id ?? identity?.id ?? '';
+  const userId = typeof identity === 'string'
+    ? identity
+    : identity?.user_id ?? identity?.id ?? state?.ui?.uid ?? '';
+  const username = typeof identity === 'string'
+    ? state?.ui?.dh
+    : identity?.username ?? state?.ui?.dh;
 
   if (!csrfToken) throw new Error('Could not determine Poshmark CSRF token from page state/cookies');
   if (!userId) throw new Error('Could not determine Poshmark user id from page state');
@@ -117,6 +126,6 @@ export async function getSessionInfoFromPage(page: Page): Promise<PoshmarkSessio
   return {
     csrfToken,
     userId,
-    username: identity?.username,
+    username,
   };
 }

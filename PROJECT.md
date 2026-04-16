@@ -159,7 +159,7 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 - [x] **Notifications:** Ping on Telegram + status in sheet
 - [x] **Auto-update sheet:** Yes, Seth handles everything
 - [x] **Shipping statuses:** Yes — `needs_shipped` and `shipped` added to flow
-- [ ] **Poshmark login credentials:** Need to store email + password securely
+- [x] **Poshmark login credentials:** Stored in `.env`
 - [ ] **Google Cloud project / service account:** Need to set up for Drive + Sheets API
 - [ ] **Browser automation setup:** Playwright or Puppeteer on the server
 - [ ] **Poshmark status sync frequency:** How often should Seth check Poshmark for sold/shipped updates?
@@ -182,7 +182,7 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 
 ## Status
 
-**Phase:** Google Drive & Sheets setup complete, awaiting Google Cloud service account for API access
+**Phase:** Google Drive & Sheets setup complete, Poshmark auth/session bootstrap working, listing-create integration in progress
 **GitHub:** https://github.com/sethtock/poshmark-store
 
 ### ✅ Completed
@@ -202,21 +202,26 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 - **Vision analysis** — works with local JPEG files (base64 encoded)
 - **Automated tests** — Vitest unit tests for pricing, comparables, vision logic
 - **ADRs** — architecture decision records for HEIC conversion, comparable cache, service account auth
+- **Poshmark auth bootstrap** — two-step OTP flow works and saves reusable session state to `data/poshmark-storage-state.json`
+- **Saved OTP challenge flow** — request and submit are split so submitting a code no longer triggers another SMS
+- **Current listing entry path identified** — `/sell` redirects to `/create-listing`; old `/modal/listing/create` route is stale
 
 ### ⏳ Waiting On
-- **Browser automation** — Playwright setup for Poshmark posting
+- **Listing create integration** — finish adapting draft/post flow to `/sell` / `/create-listing` and API-backed session helpers
 
 ## ⚠️ Poshmark Login — Phone Verification Required
 
-Chris's Poshmark account requires **phone/SMS 2FA** before the `/sell` page unlocks. Every new browser session triggers:
-1. Visit poshmark.com/sell
-2. Enter phone: `9163357435`
-3. Click "Text me"
-4. Wait for SMS code from Chris
-5. Enter 6-digit code in the same phone input field
-6. Click "Ok"
-7. THEN proceed to listing creation
+Chris's Poshmark account requires SMS verification, but the working flow is now documented and codified:
 
-**Credentials stored:** Kirk.chris@gmail.com / i.sZyv6C6o@us_ (in `.env`, not committed)
+1. Run `npm run poshmark:auth:request`
+2. Poshmark sends one fresh SMS code
+3. Run `npm run poshmark:auth:submit -- 123456`
+4. The script reuses the saved challenge, exchanges the code for an `entry_token`, replays login, and saves session state
 
-**IMPORTANT:** Do NOT click "Text me" multiple times without waiting for the code — Poshmark re-sends a new code each time, which invalidates the previous one. Wait for Chris to respond with the code before submitting.
+Important guardrails:
+- Keep request and submit as separate steps
+- Do **not** request a second code before trying the first one
+- Reuse `data/poshmark-storage-state.json` once auth succeeds
+- Use `/sell` or `/create-listing`, not `/modal/listing/create`
+
+**Credentials:** stored in `.env` via `POSHMARK_EMAIL` / `POSHMARK_PASSWORD`, not in docs.

@@ -7,11 +7,12 @@
 
 ## Steps to run via browser tool
 1. Navigate to poshmark.com/login
-2. Login with: Kirk.chris@gmail.com / i.sZyv6C6o@us_
-3. Navigate to create listing
-4. Upload all 3 photos
-5. Fill: title, description, brand (Jacadi), size (6M), price ($75), condition (NWT)
-6. Publish and capture URL
+2. Login with the `POSHMARK_EMAIL` / `POSHMARK_PASSWORD` env vars
+3. If prompted, use the documented two-step OTP flow from `docs/poshmark-auth.md`
+4. Navigate to `https://poshmark.com/sell` (redirects to `/create-listing`)
+5. Upload all 3 photos
+6. Fill: title, description, brand (Jacadi), size (6M), price ($75), condition (NWT)
+7. Publish and capture URL
 
 ## Listing data
 - Title: Jacadi Baby Snowsuit 6M Blue White Green NWT

@@ -58,12 +58,13 @@ async function login(page: Page): Promise<void> {
 }
 
 async function uploadPhotos(page: Page, photoUrls: string[]): Promise<void> {
-  // Poshmark listing flow: click "List" button
-  await page.click('button[data-test="create-list-btn"], a[href="/modal/listing/create"]', { timeout: 5000 }).catch(async () => {
-    // Fallback: go directly
-    await page.goto(`${POSHMARK_URL}/modal/listing/create`);
-    await page.waitForLoadState('networkidle');
-  });
+  const hasFileInput = await page.locator('input[type="file"]').count().catch(() => 0);
+  if (!hasFileInput) {
+    await page.click('button[data-test="create-list-btn"], a[href="/create-listing"], a[href="/sell"]', { timeout: 5000 }).catch(async () => {
+      await page.goto(`${POSHMARK_URL}/sell`, { waitUntil: 'domcontentloaded' });
+      await page.waitForLoadState('networkidle');
+    });
+  }
 
   await page.waitForSelector('input[type="file"]', { timeout: 10000 });
 
@@ -112,7 +113,7 @@ export async function createListing(listing: ListingData): Promise<string> {
     await login(page);
 
     // Go to create listing
-    await page.goto(`${POSHMARK_URL}/modal/listing/create`);
+    await page.goto(`${POSHMARK_URL}/sell`, { waitUntil: 'domcontentloaded' });
     await page.waitForLoadState('networkidle');
 
     // Upload photos

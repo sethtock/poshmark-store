@@ -7,7 +7,7 @@ Automated Poshmark selling pipeline — photos land in Google Drive → AI analy
 1. **Watches Google Drive** for new folder-per-item photo drops
 2. **Analyzes photos** via vision AI to extract brand, size, color, condition
 3. **Prices items** using Poshmark sold comparables + rule-based engine
-4. **Auto-posts** items under $80 with high confidence; flags expensive/low-confidence items for review
+4. **Posts through a saved Poshmark session** with documented SMS bootstrap; flags expensive/low-confidence items for review
 5. **Tracks everything** in a Google Sheet with status flow: `pending_review → draft → posted → needs_shipped → shipped → sold`
 6. **Notifies you** on Telegram when review is needed or items are posted
 
@@ -78,6 +78,32 @@ npm start
 ```bash
 npm start
 ```
+
+### Poshmark auth bootstrap
+
+Use the durable two-step auth flow, not ad hoc login retries:
+
+1. Request one fresh SMS code and save the pending challenge:
+
+```bash
+npm run poshmark:auth:request
+```
+
+2. Submit the fresh code against that saved challenge, without generating another SMS:
+
+```bash
+npm run poshmark:auth:submit -- 123456
+```
+
+Important paths:
+- saved session: `data/poshmark-storage-state.json`
+- saved pending OTP challenge: `data/poshmark-pending-auth.json`
+- API trace log: `data/poshmark-api-capture.jsonl`
+- real listing entry path: `https://poshmark.com/sell` → `/create-listing`
+
+Do not use `https://poshmark.com/modal/listing/create`, it currently returns 404.
+
+For the full auth notes, see `docs/poshmark-auth.md`.
 
 ### Run on a schedule (cron)
 ```bash
