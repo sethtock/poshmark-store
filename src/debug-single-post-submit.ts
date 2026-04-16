@@ -8,14 +8,9 @@ import type { Item } from './types.js';
 import axios from 'axios';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { generateListingTitle } from './lib/listing-text.js';
 
 loadEnv();
-
-function buildTitle(item: Item): string {
-  const category = item.category?.replace(/^Girls\s+/i, '').replace(/^Boys\s+/i, '').trim() ?? 'Kids Item';
-  const pieces = [item.brand, category, item.size, item.color].filter(Boolean);
-  return pieces.join(' ').slice(0, 80) || item.id;
-}
 
 function mapCategory(category: string): { department: 'kids'; subcategory: string | null } {
   const normalized = category.toLowerCase();
@@ -116,7 +111,7 @@ async function getFirstReadyItem(): Promise<Item> {
 
 async function main(): Promise<void> {
   const item = await getFirstReadyItem();
-  const title = buildTitle(item);
+  const title = generateListingTitle(item);
   const price = item.currentPrice ?? item.initialPrice ?? 0;
   const mappedCategory = mapCategory(item.category ?? 'Kids');
   const mappedSize = mapSize(item.size);

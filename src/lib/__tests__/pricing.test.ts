@@ -179,57 +179,41 @@ describe('Pricing Engine', () => {
   });
 
   describe('Description generation', () => {
-    const generateDescription = (
-      brand: string | null,
-      size: string | null,
-      color: string | null,
-      condition: string | null,
-      category: string | null,
-    ): string => {
-      const parts: string[] = [];
-      if (brand) parts.push(`Brand: ${brand}`);
-      if (size) parts.push(`Size: ${size}`);
-      if (color) parts.push(`Color: ${color}`);
-      if (condition) {
-        const conditionText: Record<string, string> = {
-          nwt: 'New with Tags', nwot: 'New without Tags',
-          like_new: 'Like New', good: 'Good', fair: 'Fair',
-        };
-        parts.push(`Condition: ${conditionText[condition] ?? condition}`);
-      }
-      if (category) parts.push(`Category: ${category}`);
-      parts.push('');
-      if (condition === 'nwt') parts.push('New with tags — never worn. Perfect condition, ready for a new home!');
-      else if (condition === 'like_new') parts.push('Worn once or twice — excellent condition, no visible wear.');
-      else if (condition === 'good') parts.push('Pre-loved and ready for its next adventure!');
-      parts.push('Ready to ship same or next business day! 🚀');
-      parts.push('Happy to answer any questions!');
-      return parts.join('\n');
+    const generateDescription = (condition: string | null): string => {
+      const conditionLine: Record<string, string> = {
+        nwt: 'New with tags, never worn, and in perfect condition.',
+        nwot: 'New without tags and in excellent condition.',
+        like_new: 'Excellent condition with little to no visible wear.',
+        good: 'Gently used and still in great shape.',
+        fair: 'Pre-loved with visible wear, priced accordingly.',
+      };
+
+      return [
+        conditionLine[condition ?? ''] ?? 'Pre-loved and ready for a new home.',
+        'Ready to ship same or next business day! 🚀',
+        'Happy to answer any questions!',
+      ].join('\n');
     };
 
-    it('includes all available fields', () => {
-      const desc = generateDescription('Nike', '6C', 'white', 'like_new', 'footwear');
-      expect(desc).toContain('Brand: Nike');
-      expect(desc).toContain('Size: 6C');
-      expect(desc).toContain('Color: white');
-      expect(desc).toContain('Condition: Like New');
-      expect(desc).toContain('Category: footwear');
-      expect(desc).toContain('Worn once or twice');
+    it('keeps the description freeform', () => {
+      const desc = generateDescription('like_new');
+      expect(desc).toContain('Excellent condition');
+      expect(desc).not.toContain('Brand:');
+      expect(desc).not.toContain('Size:');
+      expect(desc).not.toContain('Color:');
+      expect(desc).not.toContain('Category:');
       expect(desc).toContain('🚀');
     });
 
-    it('handles minimal item (no brand, no color)', () => {
-      const desc = generateDescription(null, '2T', null, 'good', null);
-      expect(desc).toContain('Size: 2T');
-      expect(desc).toContain('Condition: Good');
-      expect(desc).not.toContain('Brand:');
-      expect(desc).not.toContain('Color:');
-      expect(desc).toContain('Pre-loved');
+    it('handles good condition cleanly', () => {
+      const desc = generateDescription('good');
+      expect(desc).toContain('Gently used');
+      expect(desc).toContain('Happy to answer any questions!');
     });
 
     it('includes ship line for all conditions', () => {
       for (const cond of ['nwt', 'nwot', 'like_new', 'good', 'fair']) {
-        const desc = generateDescription('Nike', '6C', 'white', cond, 'footwear');
+        const desc = generateDescription(cond);
         expect(desc).toContain('🚀');
         expect(desc).toContain('Ready to ship same or next business day!');
       }

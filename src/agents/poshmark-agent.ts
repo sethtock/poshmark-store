@@ -112,6 +112,3 @@ export async function run(): Promise<void> {
   console.log('✅ Run complete:', JSON.stringify(results, null, 2));
 }
 
-function buildTitle(item: Item): string {
-  return [item.category, item.brand, item.size, item.color].filter(Boolean).join(' ') || `Kids Item ${item.id}`;
-}

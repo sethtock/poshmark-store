@@ -3,6 +3,7 @@
 import type { Item, PricingResult, ComparableItem } from '../types.js';
 import { findComparables } from './comparables.js';
 import { loadEnv, REVIEW_PRICE_THRESHOLD } from './env.js';
+import { generateListingDescription } from './listing-text.js';
 loadEnv(); // Ensure env vars are loaded before reading REVIEW_PRICE_THRESHOLD
 
 type Confidence = 'high' | 'medium' | 'low';
@@ -69,7 +70,7 @@ export interface AnalyzeResult {
  * This is called by the sub-agent for each new item folder.
  */
 export async function analyzeItem(item: Item): Promise<AnalyzeResult> {
-  const description = generateDescription(item);
+  const description = generateListingDescription(item);
   const pricing = await calculatePricing(item, description);
 
   const needsReview =
@@ -85,36 +86,6 @@ export async function analyzeItem(item: Item): Promise<AnalyzeResult> {
   else if (!item.size) reviewReason = 'No size detected';
 
   return { item: { ...item, description }, pricing, needsReview, reviewReason };
-}
-
-function generateDescription(item: Pick<Item, 'brand' | 'size' | 'color' | 'condition' | 'category'>): string {
-  const parts: string[] = [];
-
-  if (item.brand) parts.push(`Brand: ${item.brand}`);
-  if (item.size) parts.push(`Size: ${item.size}`);
-  if (item.color) parts.push(`Color: ${item.color}`);
-  if (item.condition) {
-    const conditionText = { nwt: 'New with Tags', nwot: 'New without Tags', like_new: 'Like New', good: 'Good', fair: 'Fair' }[item.condition] ?? item.condition;
-    parts.push(`Condition: ${conditionText}`);
-  }
-  if (item.category) parts.push(`Category: ${item.category}`);
-
-  parts.push('');
-  if (item.condition === 'nwt') {
-    parts.push('New with tags — never worn. Perfect condition, ready for a new home!');
-  } else if (item.condition === 'nwot') {
-    parts.push('New without tags — never worn, excellent condition.');
-  } else if (item.condition === 'like_new') {
-    parts.push('Worn once or twice — excellent condition, no visible wear.');
-  } else if (item.condition === 'good') {
-    parts.push('Pre-loved and ready for its next adventure!');
-  } else {
-    parts.push('Well-loved and ready for a new home.');
-  }
-  parts.push('Ready to ship same or next business day! 🚀');
-  parts.push('Happy to answer any questions!');
-
-  return parts.join('\n');
 }
 
 async function calculatePricing(

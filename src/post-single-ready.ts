@@ -2,15 +2,10 @@ import { loadEnv } from './lib/env.js';
 import { getSheetsClient, getSpreadsheetId, refreshSummary, updateItem } from './lib/sheets.js';
 import { createListing, closeBrowser } from './lib/poshmark.js';
 import { getAuth, getDriveClient, listPhotosInFolder, getPhotoUrl, downloadAndConvertPhoto } from './lib/drive.js';
+import { generateListingTitle } from './lib/listing-text.js';
 import type { Item } from './types.js';
 
 loadEnv();
-
-function buildTitle(item: Item): string {
-  const category = item.category?.replace(/^Girls\s+/i, '').replace(/^Boys\s+/i, '').trim() ?? 'Kids Item';
-  const pieces = [item.brand, category, item.size, item.color].filter(Boolean);
-  return pieces.join(' ').slice(0, 80) || item.id;
-}
 
 async function getFirstReadyItem(): Promise<Item> {
   const sheets = await getSheetsClient();
@@ -66,7 +61,7 @@ async function main(): Promise<void> {
   console.log(`Using ${item.photoUrls.length} photo(s)`);
 
   const listingUrl = await createListing({
-    title: buildTitle(item),
+    title: generateListingTitle(item),
     description: item.description,
     category: item.category ?? 'Kids',
     brand: item.brand,
