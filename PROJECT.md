@@ -34,8 +34,8 @@ Automated Poshmark selling pipeline: photos land in Google Drive → Seth (sub-a
 ## Folder Structure (Google Drive)
 
 ```
-Poshmark Store/                    (folder ID: 1T7pm8E_lG6g3BpJxLTKTjbV_RQDj4YV2)
-└── Inputs/                        (folder ID: 1r7lvD-aNAHQSQKj1rRgbO2PSLVPqPSS9)
+Poshmark Store/                    (folder ID configured in env)
+└── Inputs/                        (folder ID configured in env)
     ├── item-001/          ← one folder per item
     │   ├── photo1.jpg
     │   ├── photo2.jpg
@@ -187,14 +187,14 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 **GitHub:** https://github.com/sethtock/poshmark-store
 
 ### ✅ Completed
-- **Poshmark folder created** — `1T7pm8E_lG6g3BpJxLTKTjbV_RQDj4YV2`
-- **Inputs folder created** — `1r7lvD-aNAHQSQKj1rRgbO2PSLVPqPSS9` (where item folders go)
-- **Spreadsheet created** — `1-9Ig2qviF_de9dM82P2KzYZ-NkINlOuo_HLMEMRVzK8` (in Poshmark folder)
+- **Poshmark folder created** — configured in env / Drive
+- **Inputs folder created** — configured in env / Drive
+- **Spreadsheet created** — configured in env / Sheets
   - Tab "All Items" with headers
   - Tab "Summary" with headers
 - **Poshmark credentials stored** in `.env`
 - **gog (Google Workspace CLI)** configured with OAuth access
-- **Google Cloud service account** — `poshmark-drive@poshmark-store.iam.gserviceaccount.com`
+- **Google Cloud service account** — configured and shared with the required Drive/Sheets resources
   - JSON key saved to `service-account-key.json`
   - Drive + Sheets APIs enabled
   - Drive folder + spreadsheet shared with service account (writer access)

@@ -18,7 +18,7 @@ Chris's personal Google account (`sethtock@gmail.com`) is used for the main gog 
 
 Create a dedicated Google Cloud project and service account:
 
-**Service account:** `poshmark-drive@poshmark-store.iam.gserviceaccount.com`
+**Service account:** dedicated service account for Drive + Sheets access (email intentionally not published)
 
 **Setup:**
 1. Google Cloud project `poshmark-store` with Drive API + Sheets API enabled
@@ -60,4 +60,4 @@ Same issues as above.
 
 - `service-account-key.json` is in `.gitignore` — never committed
 - `GOOGLE_SERVICE_ACCOUNT_KEY` env var points to the file path
-- Only `poshmark-drive@poshmark-store.iam.gserviceaccount.com` has access to the Drive folder and spreadsheet — Chris's personal account still owns the data
+- Only the dedicated service account has access to the Drive folder and spreadsheet for automation — Chris's personal account still owns the data
