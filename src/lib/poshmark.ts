@@ -57,6 +57,26 @@ async function login(page: Page): Promise<void> {
   await savePoshmarkSession(page.context());
 }
 
+async function dismissPhotoModal(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    let acted = false;
+    acted = await clickIfVisible(page, 'button:has-text("Apply"):visible') || acted;
+    acted = await clickIfVisible(page, 'button:has-text("Done"):visible') || acted;
+    acted = await clickIfVisible(page, 'button:has-text("Got it!"):visible') || acted;
+    acted = await clickIfVisible(page, 'button:has-text("Ok"):visible') || acted;
+
+    const modalVisible = await page.locator('div.listing-editor__image-modal, div[data-test="modal-body"].listing-editor__image-modal').first().isVisible().catch(() => false);
+    if (!modalVisible) return;
+
+    if (!acted) {
+      await page.keyboard.press('Escape').catch(() => {});
+    }
+    await page.waitForTimeout(500);
+  }
+
+  await page.locator('div.listing-editor__image-modal, div[data-test="modal-body"].listing-editor__image-modal').first().waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+}
+
 async function uploadPhotos(page: Page, photoUrls: string[]): Promise<void> {
   const hasFileInput = await page.locator('input[type="file"]').count().catch(() => 0);
   if (!hasFileInput) {
@@ -82,8 +102,8 @@ async function uploadPhotos(page: Page, photoUrls: string[]): Promise<void> {
 
   await uploadInput.setInputFiles(filePaths);
   await page.waitForTimeout(1500);
-  await clickIfVisible(page, 'button:has-text("Apply"):visible');
-  await page.waitForTimeout(1500);
+  await dismissPhotoModal(page);
+  await page.waitForTimeout(1000);
 }
 
 import { writeFile } from 'fs/promises';
@@ -110,8 +130,16 @@ interface ListingData {
   photoUrls: string[];
 }
 
+function normalizeNullableText(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^(null|n\/a|na|none|unknown)$/i.test(trimmed)) return null;
+  return trimmed;
+}
+
 function isFootwearCategory(category: string | null): boolean {
-  const normalized = (category ?? '').toLowerCase();
+  const normalized = (normalizeNullableText(category) ?? '').toLowerCase();
   return normalized.includes('shoe') || normalized.includes('boot') || normalized.includes('sandal') || normalized.includes('footwear') || normalized.includes('sneaker') || normalized.includes('slipper');
 }
 
@@ -131,9 +159,10 @@ function mapCategory(category: string): { department: 'kids'; subcategory: strin
 }
 
 function mapSize(size: string | null, category: string | null): { tab: 'Baby' | 'Girls' | 'Boys' | 'Custom'; label: string } | null {
-  if (!size) return null;
+  const rawSize = normalizeNullableText(size);
+  if (!rawSize) return null;
 
-  const raw = size.trim();
+  const raw = rawSize.replace(/^us\s+/i, '').trim();
   const normalized = raw.toLowerCase().replace(/\s+/g, ' ');
 
   const monthMap: Record<string, string> = {
@@ -160,7 +189,7 @@ function mapSize(size: string | null, category: string | null): { tab: 'Baby' | 
   if (monthMap[normalized]) return { tab: 'Baby', label: monthMap[normalized] };
 
   if (isFootwearCategory(category)) {
-    const childShoeMatch = raw.match(/^(\d+(?:\.\d+)?)\s*c$/i);
+    const childShoeMatch = raw.match(/^(\d+(?:\.\d+)?)\s*[ck]$/i);
     if (childShoeMatch) {
       const numeric = childShoeMatch[1];
       return { tab: Number(numeric) <= 7 ? 'Baby' : 'Boys', label: numeric };
@@ -203,9 +232,7 @@ export async function createListing(listing: ListingData): Promise<string> {
     // Upload photos
     await uploadPhotos(page, listing.photoUrls);
     await page.waitForTimeout(2000);
-
-    await clickIfVisible(page, 'button:has-text("Got it!")');
-    await clickIfVisible(page, 'button:has-text("Ok")');
+    await dismissPhotoModal(page);
 
     // Use evaluate-based fill to properly trigger React controlled-input events
     const titleVal = listing.title.substring(0, 100);

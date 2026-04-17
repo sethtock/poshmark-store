@@ -1,5 +1,13 @@
 import type { Item } from '../types.js';
 
+function normalizeNullableText(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^(null|n\/a|na|none|unknown)$/i.test(trimmed)) return null;
+  return trimmed;
+}
+
 const CATEGORY_TITLE_MAP: Array<[RegExp, string]> = [
   [/dress/i, 'Dress'],
   [/(shirt|top|blouse|sweater)/i, 'Top'],
@@ -10,15 +18,16 @@ const CATEGORY_TITLE_MAP: Array<[RegExp, string]> = [
   [/(pajamas|pajama)/i, 'Pajamas'],
   [/(sandals|sandal)/i, 'Sandals'],
   [/(boots|boot)/i, 'Boots'],
-  [/(shoes|shoe|sneakers|sneaker)/i, 'Shoes'],
+  [/(shoes|shoe|sneakers|sneaker|footwear)/i, 'Shoes'],
   [/(swim|swimsuit)/i, 'Swimwear'],
   [/(costumes|costume)/i, 'Costume'],
   [/(accessories|accessory)/i, 'Accessory'],
 ];
 
 function normalizeColor(color: string | null): string | null {
-  if (!color) return null;
-  return color
+  const normalized = normalizeNullableText(color);
+  if (!normalized) return null;
+  return normalized
     .split(/[\/,&]/)[0]
     ?.trim()
     ?.replace(/\s+/g, ' ')
@@ -26,12 +35,13 @@ function normalizeColor(color: string | null): string | null {
 }
 
 function categoryToTitle(category: string | null): string | null {
-  if (!category) return null;
+  const normalized = normalizeNullableText(category);
+  if (!normalized) return null;
   for (const [pattern, label] of CATEGORY_TITLE_MAP) {
-    if (pattern.test(category)) return label;
+    if (pattern.test(normalized)) return label;
   }
 
-  const stripped = category
+  const stripped = normalized
     .replace(/^(Girls|Girl|Boys|Boy|Kids|Kid|Baby)\s+/i, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -41,9 +51,9 @@ function categoryToTitle(category: string | null): string | null {
 
 export function generateListingTitle(item: Pick<Item, 'brand' | 'category' | 'size' | 'color' | 'id'>): string {
   const parts = [
-    item.brand?.trim(),
+    normalizeNullableText(item.brand),
     categoryToTitle(item.category),
-    item.size?.trim(),
+    normalizeNullableText(item.size),
     normalizeColor(item.color),
   ].filter(Boolean);
 
@@ -51,7 +61,7 @@ export function generateListingTitle(item: Pick<Item, 'brand' | 'category' | 'si
 }
 
 export function getListingTitle(item: Pick<Item, 'title' | 'brand' | 'category' | 'size' | 'color' | 'id'>): string {
-  const explicitTitle = item.title?.trim();
+  const explicitTitle = normalizeNullableText(item.title)?.replace(/\bnull\b/gi, '').replace(/\s+/g, ' ').trim();
   if (explicitTitle) return explicitTitle;
   return generateListingTitle(item);
 }
