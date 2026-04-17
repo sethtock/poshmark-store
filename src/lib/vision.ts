@@ -2,8 +2,9 @@
 
 import type { Item } from '../types.js';
 
-const KNOWN_BRAND_GUIDANCE = `Known brands often seen in this closet: Nike, Adidas, Jordan, Janie and Jack, Golden Goose.
-For Golden Goose kids sneakers, watch for these cues: side star applique, GGDB branding, SSTAR lettering on straps, Golden Goose heel or insole branding, Made in Italy stamp, and an intentionally vintage or distressed-looking sole. Do not mistake Golden Goose's intentional worn-in styling for severe damage unless there is additional real wear.`;
+const KNOWN_BRAND_GUIDANCE = `Known brands often seen in this closet: Nike, Adidas, Jordan, Janie and Jack, Golden Goose, Vans.
+For Golden Goose kids sneakers, watch for these cues: side star applique, GGDB branding, SSTAR lettering on straps, Golden Goose heel or insole branding, Made in Italy stamp, and an intentionally vintage or distressed-looking sole. Do not mistake Golden Goose's intentional worn-in styling for severe damage unless there is additional real wear.
+For Vans kids shoes, watch for these cues: Vans tongue or insole branding, OFF THE WALL heel branding, signature side stripe, waffle sole, and skate-style low or mid top silhouettes, often with velcro straps on toddler pairs.`;
 
 function normalizeNullableText(value: string | null | undefined): string | null {
   if (value == null) return null;
@@ -18,6 +19,7 @@ function normalizeVisionBrand(brand: string | null | undefined, notes: string | 
   const combined = `${normalizedBrand ?? ''} ${notes ?? ''}`.toLowerCase();
 
   if (/golden\s*goose|ggdb|sstar/.test(combined)) return 'Golden Goose';
+  if (/\bvans\b|off the wall/.test(combined)) return 'Vans';
   if (/janie\s+and\s+jack/.test(combined)) return 'Janie and Jack';
 
   return normalizedBrand;

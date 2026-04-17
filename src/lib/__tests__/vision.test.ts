@@ -41,6 +41,7 @@ describe('Vision Analysis', () => {
       const normalizedBrand = normalizeNullableText(brand);
       const combined = `${normalizedBrand ?? ''} ${notes ?? ''}`.toLowerCase();
       if (/golden\s*goose|ggdb|sstar/.test(combined)) return 'Golden Goose';
+      if (/\bvans\b|off the wall/.test(combined)) return 'Vans';
       if (/janie\s+and\s+jack/.test(combined)) return 'Janie and Jack';
       return normalizedBrand;
     };
@@ -93,6 +94,11 @@ describe('Vision Analysis', () => {
     it('normalizes Golden Goose from GGDB cues in notes', () => {
       expect(normalizeVisionBrand(null, 'GGDB branding on straps and side star visible')).toBe('Golden Goose');
       expect(normalizeVisionBrand('Golden Goose Kids', 'Made in Italy')).toBe('Golden Goose');
+    });
+
+    it('normalizes Vans from brand cues in notes', () => {
+      expect(normalizeVisionBrand(null, 'Vans branding visible on tongue')).toBe('Vans');
+      expect(normalizeVisionBrand(null, 'OFF THE WALL heel branding visible')).toBe('Vans');
     });
   });
 

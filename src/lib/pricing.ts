@@ -25,7 +25,7 @@ const CONDITION_MULTIPLIERS: Record<string, number> = {
 
 const BRAND_MULTIPLIERS: Record<string, number> = {
   // Premium brands
-  lululemon: 0.90, patagonia: 0.85, nike: 0.75, gap: 0.75,
+  lululemon: 0.90, patagonia: 0.85, nike: 0.75, vans: 0.70, gap: 0.75,
   'old navy': 0.60, 'gymboree': 0.60, 'child of mine': 0.55,
   carters: 0.55, oshkosh: 0.55, chuck: 0.75,
   // Mid-tier

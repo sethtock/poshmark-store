@@ -30,6 +30,7 @@ describe('Pricing Engine', () => {
       lululemon: 0.90,
       patagonia: 0.85,
       nike: 0.75,
+      vans: 0.70,
       gap: 0.70,
       'old navy': 0.60,
       hm: 0.50,
@@ -50,6 +51,7 @@ describe('Pricing Engine', () => {
       expect(getBrandMultiplier('Nike')).toBeCloseTo(0.75);
       expect(getBrandMultiplier('NIKE')).toBeCloseTo(0.75);
       expect(getBrandMultiplier('Janie and Jack')).toBeCloseTo(0.85);
+      expect(getBrandMultiplier('Vans')).toBeCloseTo(0.70);
       expect(getBrandMultiplier('Old Navy')).toBeCloseTo(0.60);
       expect(getBrandMultiplier('Lululemon')).toBeCloseTo(0.90);
     });
