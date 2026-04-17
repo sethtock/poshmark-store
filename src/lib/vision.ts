@@ -25,6 +25,22 @@ function normalizeVisionBrand(brand: string | null | undefined, notes: string | 
   return normalizedBrand;
 }
 
+function normalizeVisionSize(size: string | null | undefined, notes: string | null | undefined): string | null {
+  const normalizedSize = normalizeNullableText(size);
+  const combined = `${normalizedSize ?? ''} ${notes ?? ''}`;
+
+  const kidsAlpha = combined.match(/\b(?:us\s*)?(\d+(?:\.\d+)?)\s*([CYT])\b/i);
+  if (kidsAlpha) return `${kidsAlpha[1]}${kidsAlpha[2].toUpperCase()}`;
+
+  const euSize = combined.match(/\bEU\s*(\d+(?:\.\d+)?)\b/i);
+  if (euSize) return `EU ${euSize[1]}`;
+
+  const toddlerSize = combined.match(/\b(?:US\s*)?Toddler\s*(\d+(?:\.\d+)?)\b/i);
+  if (toddlerSize) return `US Toddler ${toddlerSize[1]}`;
+
+  return normalizedSize;
+}
+
 export interface VisionResult {
   brand: string | null;
   itemType: string | null;
@@ -59,7 +75,7 @@ export async function analyzePhoto(photoUrlOrPath: string): Promise<VisionResult
     const fs = await import('fs/promises');
     const buffer = await fs.readFile(photoUrlOrPath);
     const base64 = buffer.toString('base64');
-    imageContent = { url: `data:image/jpeg;base64,${base64}`, detail: 'low' };
+    imageContent = { url: `data:image/jpeg;base64,${base64}`, detail: 'high' };
   }
 
   // Use OpenAI vision API (also works with OpenRouter-compatible endpoints)
@@ -81,16 +97,17 @@ export async function analyzePhoto(photoUrlOrPath: string): Promise<VisionResult
               {
                 type: 'text',
                 text: `Analyze this kids clothing or shoes photo. ${KNOWN_BRAND_GUIDANCE}
+Important: look very carefully for size tags, tongue labels, insole stamps, inner collar labels, and outsole stamps. If text is sideways or upside down, mentally rotate it before answering. If a size is visible anywhere in the image, return the exact size label. Prefer kids shoe sizes like 6C, 7C, 2Y, toddler 7, or EU 23.5 over vague guesses.
 Return ONLY valid JSON (no markdown, no explanation):
 {
   "brand": "brand name or null",
   "itemType": "type of item (shirt, pants, dress, sneakers, sandals, etc.)",
-  "size": "size label or null",
+  "size": "exact size label from the photo, or null",
   "color": "primary color or null",
   "condition": "like_new, good, or fair",
   "category": "category (tops, bottoms, dresses, footwear, sneakers, etc.)",
   "confidence": "high, medium, or low",
-  "notes": "any additional observations, including visible brand cues, style details, and real wear vs intentional distress"
+  "notes": "any additional observations, including visible brand cues, style details, exact tag text, and real wear vs intentional distress"
 }`,
               },
               {
@@ -122,7 +139,7 @@ Return ONLY valid JSON (no markdown, no explanation):
     return {
       brand: normalizeVisionBrand(parsed.brand ?? null, notes),
       itemType: normalizeNullableText(parsed.itemType ?? null),
-      size: normalizeNullableText(parsed.size ?? null),
+      size: normalizeVisionSize(parsed.size ?? null, notes),
       color: normalizeNullableText(parsed.color ?? null),
       condition: (parsed.condition as VisionResult['condition']) ?? 'good',
       category: normalizeNullableText(parsed.category ?? null),

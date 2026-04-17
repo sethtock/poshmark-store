@@ -46,6 +46,18 @@ describe('Vision Analysis', () => {
       return normalizedBrand;
     };
 
+    const normalizeVisionSize = (size: string | null | undefined, notes: string | null | undefined) => {
+      const normalizedSize = normalizeNullableText(size);
+      const combined = `${normalizedSize ?? ''} ${notes ?? ''}`;
+      const kidsAlpha = combined.match(/\b(?:us\s*)?(\d+(?:\.\d+)?)\s*([CYT])\b/i);
+      if (kidsAlpha) return `${kidsAlpha[1]}${kidsAlpha[2].toUpperCase()}`;
+      const euSize = combined.match(/\bEU\s*(\d+(?:\.\d+)?)\b/i);
+      if (euSize) return `EU ${euSize[1]}`;
+      const toddlerSize = combined.match(/\b(?:US\s*)?Toddler\s*(\d+(?:\.\d+)?)\b/i);
+      if (toddlerSize) return `US Toddler ${toddlerSize[1]}`;
+      return normalizedSize;
+    };
+
     it('extracts all fields from valid JSON response', () => {
       const raw = JSON.stringify({
         brand: 'Nike',
@@ -99,6 +111,13 @@ describe('Vision Analysis', () => {
     it('normalizes Vans from brand cues in notes', () => {
       expect(normalizeVisionBrand(null, 'Vans branding visible on tongue')).toBe('Vans');
       expect(normalizeVisionBrand(null, 'OFF THE WALL heel branding visible')).toBe('Vans');
+    });
+
+    it('normalizes kids size from notes and tag text', () => {
+      expect(normalizeVisionSize(null, 'size tag shows US 6C')).toBe('6C');
+      expect(normalizeVisionSize('US 6C', '')).toBe('6C');
+      expect(normalizeVisionSize(null, 'EU 23.5 on inner tag')).toBe('EU 23.5');
+      expect(normalizeVisionSize(null, 'Toddler 7 visible on label')).toBe('US Toddler 7');
     });
   });
 
