@@ -7,7 +7,7 @@ Automated Poshmark selling pipeline — photos land in Google Drive → AI analy
 1. **Watches Google Drive** for new folder-per-item photo drops
 2. **Analyzes photos** via vision AI to extract brand, size, color, condition
 3. **Prices items** using Poshmark sold comparables + rule-based engine
-4. **Posts through a saved Poshmark session** with documented SMS bootstrap; flags expensive/low-confidence items for review
+4. **Posts through a saved Poshmark session** with documented SMS bootstrap, batch posting helpers, and verified `/sell` → `/create-listing` flow; flags expensive/low-confidence items for review
 5. **Tracks everything** in a Google Sheet with status flow: `pending_review → ready_to_post → posted → needs_shipped → shipped → sold`
 6. **Notifies you** on Telegram when review is needed or items are posted
 
@@ -45,7 +45,7 @@ cp .env.example .env
 **Required env vars:**
 - `POSHMARK_EMAIL` / `POSHMARK_PASSWORD` — Poshmark credentials
 - `GOOGLE_SERVICE_ACCOUNT_KEY` — JSON service account key (or path to .json file)
-- `DRIVE_FOLDER_ID` — ID of the "Poshmark Store / New Items" folder
+- `DRIVE_FOLDER_ID` — ID of the `Poshmark Store / Inputs` folder
 - `SPREADSHEET_ID` — ID of the tracking spreadsheet
 - `TELEGRAM_BOT_TOKEN` — Bot token for notifications
 - `TELEGRAM_CHAT_ID` — Your Telegram chat ID
@@ -77,6 +77,15 @@ npm start
 ### Manual run
 ```bash
 npm start
+```
+
+### Post items that are ready
+```bash
+# Post every row currently marked ready_to_post
+npx tsx src/post-ready-batch.ts
+
+# Retry the first ready_to_post row only
+npx tsx src/post-single-ready.ts
 ```
 
 ### Poshmark auth bootstrap
@@ -119,7 +128,7 @@ Triggered automatically when new items appear in Drive, or manually:
 
 ```
 Poshmark Store/
-└── New Items/
+└── Inputs/
     ├── item-001/
     │   ├── photo1.jpg
     │   └── photo2.jpg
@@ -131,6 +140,14 @@ Poshmark Store/
 
 - **All Items** — Full inventory with all columns
 - **Summary** — Stats dashboard (counts, total listed/sold value)
+
+## Operator Notes
+
+- Prefer local converted JPEGs for photo analysis when available.
+- Vision is tuned to inspect size tags carefully, including sideways or upside-down tag photos.
+- Kids shoe size normalization now handles values like `6C`, `7C`, `2Y`, `EU 23.5`, and `US Toddler 7`.
+- For Poshmark category mapping, treat moccasins and crib shoes as footwear.
+- After posting, verify the sheet has both `status=posted` and a populated Poshmark URL.
 
 ## License
 

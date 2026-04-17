@@ -69,7 +69,7 @@ Chris creates a numbered folder per item, drops all photos in. Sub-agent scans f
 ## Workflow Detail
 
 ### Full Pipeline (per item)
-1. New folder detected in Drive "New Items/"
+1. New folder detected in Drive `Inputs/`
 2. Collect all photos from folder
 3. For each item:
    a. Run vision AI on cover photo → structured description (brand, type, size, color, condition)
@@ -141,7 +141,7 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 - **Schedule:** Can also run daily to check for new items and sync Poshmark status
 - **Owned by:** Main Seth agent
 - **Behavior:**
-  1. Scan Drive "New Items/" for folders with no corresponding sheet row
+  1. Scan Drive `Inputs/` for folders with no corresponding sheet row
   2. Process each through pipeline above
   3. Update Google Sheet in real-time
   4. Ping Chris on Telegram for `pending_review` items
@@ -160,9 +160,10 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 - [x] **Auto-update sheet:** Yes, Seth handles everything
 - [x] **Shipping statuses:** Yes — `needs_shipped` and `shipped` added to flow
 - [x] **Poshmark login credentials:** Stored in `.env`
-- [ ] **Google Cloud project / service account:** Need to set up for Drive + Sheets API
-- [ ] **Browser automation setup:** Playwright or Puppeteer on the server
+- [x] **Google Cloud project / service account:** Set up for Drive + Sheets API
+- [x] **Browser automation setup:** Playwright-based posting flow working on the server
 - [ ] **Poshmark status sync frequency:** How often should Seth check Poshmark for sold/shipped updates?
+- [ ] **Listing polish:** Improve generic footwear titles like `Nike Footwear 6C` into more descriptive titles before posting
 
 ---
 
@@ -170,7 +171,7 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 
 1. **Google Cloud setup** — Drive + Sheets API, service account, share folders
 2. **Spreadsheet template** — Create the sheet with tabs and column headers
-3. **Drive folder setup** — Create "New Items/" structure, share with service account
+3. **Drive folder setup** — Create `Inputs/` structure, share with service account
 4. **Credential storage** — Poshmark login in env vars
 5. **Sub-agent code** — Build the processing pipeline
 6. **Browser automation** — Playwright script for Poshmark login + post
@@ -182,7 +183,7 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 
 ## Status
 
-**Phase:** Google Drive & Sheets setup complete, Poshmark auth/session bootstrap working, listing-create integration in progress
+**Phase:** Google Drive & Sheets setup complete, Poshmark auth/session bootstrap working, ready-to-post batch listing flow working end-to-end
 **GitHub:** https://github.com/sethtock/poshmark-store
 
 ### ✅ Completed
@@ -205,9 +206,13 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 - **Poshmark auth bootstrap** — two-step OTP flow works and saves reusable session state to `data/poshmark-storage-state.json`
 - **Saved OTP challenge flow** — request and submit are split so submitting a code no longer triggers another SMS
 - **Current listing entry path identified** — `/sell` redirects to `/create-listing`; old `/modal/listing/create` route is stale
+- **Ready-item posting flow working** — `src/post-ready-batch.ts` and `src/post-single-ready.ts` successfully post listings and update the sheet to `posted`
+- **Vision size-tag detection improved** — higher-detail local analysis plus sideways-tag handling now correctly extracts sizes like `6C`
+- **Footwear category mapping improved** — moccasins and crib shoes now map to Poshmark Shoes so baby moccasin listings can post cleanly
 
 ### ⏳ Waiting On
-- **Listing create integration** — finish adapting draft/post flow to `/sell` / `/create-listing` and API-backed session helpers
+- **Listing title polish** — improve generic footwear titles before posting so listings are more descriptive by default
+- **Poshmark status sync frequency** — decide how often to check posted listings for sold / shipped updates
 
 ## ⚠️ Poshmark Login — Phone Verification Required
 
@@ -223,5 +228,6 @@ Important guardrails:
 - Do **not** request a second code before trying the first one
 - Reuse `data/poshmark-storage-state.json` once auth succeeds
 - Use `/sell` or `/create-listing`, not `/modal/listing/create`
+- Use `src/post-ready-batch.ts` or `src/post-single-ready.ts` for real posting runs instead of ad hoc debug scripts
 
 **Credentials:** stored in `.env` via `POSHMARK_EMAIL` / `POSHMARK_PASSWORD`, not in docs.

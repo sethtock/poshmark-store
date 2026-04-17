@@ -64,3 +64,10 @@ The code now treats those as canonical fallbacks when page state is incomplete.
 - Submit the code immediately after it arrives
 - Reuse saved storage state instead of forcing login again
 - If auth fails, inspect `data/poshmark-api-capture.jsonl` before requesting another SMS
+- For real listing runs, prefer `src/post-ready-batch.ts` or `src/post-single-ready.ts` over one-off debug scripts
+
+## Posting notes
+
+- The current verified listing entry path is `https://poshmark.com/sell` which lands on `/create-listing`.
+- Batch posting is working with the saved storage state.
+- Moccasins and crib shoes should be treated as footwear when mapping categories for Poshmark.
