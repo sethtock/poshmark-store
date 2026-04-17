@@ -12,6 +12,14 @@ import type { Item } from '../types.js';
 
 loadEnv();
 
+function normalizeNullableText(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^(null|n\/a|na|none|unknown)$/i.test(trimmed)) return null;
+  return trimmed;
+}
+
 export async function run(): Promise<void> {
   const DRIVE_FOLDER_ID = process.env.DRIVE_FOLDER_ID;
   if (!DRIVE_FOLDER_ID) throw new Error('DRIVE_FOLDER_ID not set');
@@ -60,11 +68,11 @@ export async function run(): Promise<void> {
       const photosToAnalyze = item.localPhotoPaths.length > 0 ? item.localPhotoPaths : item.photoUrls;
       if (photosToAnalyze.length > 0) {
         const vision = await analyzeItemPhotos(photosToAnalyze);
-        item.brand = vision.brand;
-        item.size = vision.size;
-        item.color = vision.color;
+        item.brand = normalizeNullableText(vision.brand);
+        item.size = normalizeNullableText(vision.size);
+        item.color = normalizeNullableText(vision.color);
         item.condition = vision.condition;
-        item.category = vision.category;
+        item.category = normalizeNullableText(vision.category);
         if (vision.rawDescription) item.notes = vision.rawDescription;
       }
 
@@ -81,13 +89,14 @@ export async function run(): Promise<void> {
       if (analysis.needsReview) {
         item.status = 'pending_review';
         item.notes = (item.notes ? item.notes + ' | ' : '') + (analysis.reviewReason ?? 'Needs review');
+        item.lastUpdated = new Date().toISOString();
         await updateItem(sheets, spreadsheetId, item);
         await notifyPendingReview(item, analysis.pricing, analysis.reviewReason ?? 'Needs review');
         results.pendingReview++;
         continue;
       }
 
-      // All processed items go to ready_to_post — Chris reviews the sheet and tells Seth to post
+      // Only postable items go to ready_to_post. Missing brand/size or other uncertain items stay pending_review.
       item.status = 'ready_to_post';
       item.lastUpdated = new Date().toISOString();
       await updateItem(sheets, spreadsheetId, item);

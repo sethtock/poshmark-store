@@ -8,7 +8,7 @@ Automated Poshmark selling pipeline — photos land in Google Drive → AI analy
 2. **Analyzes photos** via vision AI to extract brand, size, color, condition
 3. **Prices items** using Poshmark sold comparables + rule-based engine
 4. **Posts through a saved Poshmark session** with documented SMS bootstrap; flags expensive/low-confidence items for review
-5. **Tracks everything** in a Google Sheet with status flow: `pending_review → draft → posted → needs_shipped → shipped → sold`
+5. **Tracks everything** in a Google Sheet with status flow: `pending_review → ready_to_post → posted → needs_shipped → shipped → sold`
 6. **Notifies you** on Telegram when review is needed or items are posted
 
 ## Architecture
@@ -23,9 +23,9 @@ Automated Poshmark selling pipeline — photos land in Google Drive → AI analy
 
 ## Status Flow
 
-`pending_review` → `draft` → `posted` → `needs_shipped` → `shipped` → `sold`
+`pending_review` → `ready_to_post` → `posted` → `needs_shipped` → `shipped` → `sold`
 
-Items flagged for review: >$80, low confidence, no brand detected, no size detected.
+Items flagged for review: >$80, low confidence, no brand detected, no size detected, or junk placeholders like `null` in required fields.
 
 ## Setup
 

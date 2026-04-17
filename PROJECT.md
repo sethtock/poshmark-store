@@ -62,7 +62,7 @@ Chris creates a numbered folder per item, drops all photos in. Sub-agent scans f
 | `sold` | Payment received / transaction complete | Seth (browser check or Chris says) |
 | `error` | Something went wrong | Seth flags with error note |
 
-**Note:** All items go through `ready_to_post` before posting — Chris always has a chance to review the sheet and trigger posting.
+**Note:** Only postable items go through `ready_to_post` before posting. Items missing critical fields like size stay `pending_review` so Chris can fix them first.
 
 ---
 
@@ -75,7 +75,7 @@ Chris creates a numbered folder per item, drops all photos in. Sub-agent scans f
    a. Run vision AI on cover photo → structured description (brand, type, size, color, condition)
    b. Web search for Poshmark sold comparables → get pricing data
    c. Apply pricing rules → set price
-   d. If price > $80 OR low confidence OR no brand/size → set status `pending_review`, ping Chris on Telegram with details
+   d. If price > $80 OR low confidence OR no brand/size (including junk values like `null`) → set status `pending_review`, ping Chris on Telegram with details
    e. If auto-processable:
       - Set status `ready_to_post`
       - Update Google Sheet row with all details (description, brand, size, price, pricing reasoning, confidence)

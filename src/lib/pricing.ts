@@ -8,6 +8,13 @@ loadEnv(); // Ensure env vars are loaded before reading REVIEW_PRICE_THRESHOLD
 
 type Confidence = 'high' | 'medium' | 'low';
 
+function hasMeaningfulValue(value: string | null | undefined): boolean {
+  if (value == null) return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  return !/^(null|n\/a|na|none|unknown)$/i.test(trimmed);
+}
+
 const CONDITION_MULTIPLIERS: Record<string, number> = {
   nwt: 0.85,      // New with Tags — top condition
   nwot: 0.80,     // New without Tags
@@ -76,14 +83,14 @@ export async function analyzeItem(item: Item): Promise<AnalyzeResult> {
   const needsReview =
     pricing.confidence === 'low' ||
     (pricing.price > REVIEW_PRICE_THRESHOLD) ||
-    !item.brand ||
-    !item.size;
+    !hasMeaningfulValue(item.brand) ||
+    !hasMeaningfulValue(item.size);
 
   let reviewReason: string | undefined;
   if (pricing.price > REVIEW_PRICE_THRESHOLD) reviewReason = `Price $${pricing.price} exceeds $${REVIEW_PRICE_THRESHOLD} threshold`;
   else if (pricing.confidence === 'low') reviewReason = 'Low pricing confidence';
-  else if (!item.brand) reviewReason = 'No brand detected';
-  else if (!item.size) reviewReason = 'No size detected';
+  else if (!hasMeaningfulValue(item.brand)) reviewReason = 'No brand detected';
+  else if (!hasMeaningfulValue(item.size)) reviewReason = 'No size detected';
 
   return { item: { ...item, description }, pricing, needsReview, reviewReason };
 }
