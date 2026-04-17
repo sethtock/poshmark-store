@@ -110,11 +110,16 @@ interface ListingData {
   photoUrls: string[];
 }
 
+function isFootwearCategory(category: string | null): boolean {
+  const normalized = (category ?? '').toLowerCase();
+  return normalized.includes('shoe') || normalized.includes('boot') || normalized.includes('sandal') || normalized.includes('footwear') || normalized.includes('sneaker') || normalized.includes('slipper');
+}
+
 function mapCategory(category: string): { department: 'kids'; subcategory: string | null } {
   const normalized = category.toLowerCase();
 
   if (normalized.includes('dress')) return { department: 'kids', subcategory: 'Dresses' };
-  if (normalized.includes('shoe') || normalized.includes('boot') || normalized.includes('sandal')) return { department: 'kids', subcategory: 'Shoes' };
+  if (isFootwearCategory(category)) return { department: 'kids', subcategory: 'Shoes' };
   if (normalized.includes('pant') || normalized.includes('legging') || normalized.includes('short') || normalized.includes('bottom')) return { department: 'kids', subcategory: 'Bottoms' };
   if (normalized.includes('jacket') || normalized.includes('coat')) return { department: 'kids', subcategory: 'Jackets & Coats' };
   if (normalized.includes('set')) return { department: 'kids', subcategory: 'Matching Sets' };
@@ -125,7 +130,7 @@ function mapCategory(category: string): { department: 'kids'; subcategory: strin
   return { department: 'kids', subcategory: null };
 }
 
-function mapSize(size: string | null): { tab: 'Baby' | 'Girls' | 'Custom'; label: string } | null {
+function mapSize(size: string | null, category: string | null): { tab: 'Baby' | 'Girls' | 'Boys' | 'Custom'; label: string } | null {
   if (!size) return null;
 
   const raw = size.trim();
@@ -153,6 +158,21 @@ function mapSize(size: string | null): { tab: 'Baby' | 'Girls' | 'Custom'; label
   };
 
   if (monthMap[normalized]) return { tab: 'Baby', label: monthMap[normalized] };
+
+  if (isFootwearCategory(category)) {
+    const childShoeMatch = raw.match(/^(\d+(?:\.\d+)?)\s*c$/i);
+    if (childShoeMatch) {
+      const numeric = childShoeMatch[1];
+      return { tab: Number(numeric) <= 7 ? 'Baby' : 'Boys', label: numeric };
+    }
+
+    const numericShoeMatch = raw.match(/^(\d+(?:\.\d+)?)$/);
+    if (numericShoeMatch) {
+      const numeric = numericShoeMatch[1];
+      return { tab: Number(numeric) <= 7 ? 'Baby' : 'Boys', label: numeric };
+    }
+  }
+
   if (/^\d+t$/i.test(raw)) return { tab: 'Girls', label: raw.toUpperCase() };
   if (/^\d+[ck]?$/i.test(raw)) return { tab: 'Girls', label: raw.toUpperCase() };
 
@@ -245,7 +265,7 @@ export async function createListing(listing: ListingData): Promise<string> {
       await page.waitForTimeout(500);
     }
 
-    const mappedSize = mapSize(listing.size);
+    const mappedSize = mapSize(listing.size, listing.category);
     if (mappedSize) {
       // Scroll the size dropdown into view and force-click through any overlay
       const sizeDropdown = page.locator('div[data-test="dropdown"][selectortestlocator="size"]').first();
