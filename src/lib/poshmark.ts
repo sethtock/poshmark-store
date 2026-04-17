@@ -140,7 +140,7 @@ function normalizeNullableText(value: string | null | undefined): string | null 
 
 function isFootwearCategory(category: string | null): boolean {
   const normalized = (normalizeNullableText(category) ?? '').toLowerCase();
-  return normalized.includes('shoe') || normalized.includes('boot') || normalized.includes('sandal') || normalized.includes('footwear') || normalized.includes('sneaker') || normalized.includes('slipper');
+  return normalized.includes('shoe') || normalized.includes('boot') || normalized.includes('sandal') || normalized.includes('footwear') || normalized.includes('sneaker') || normalized.includes('slipper') || normalized.includes('moccasin') || normalized.includes('crib shoe');
 }
 
 function mapCategory(category: string): { department: 'kids'; subcategory: string | null } {
