@@ -65,6 +65,11 @@ function getBrandMultiplier(brand: string | null): number {
   return 0.45;
 }
 
+function isGoldenGooseFootwear(brand: string | null, itemType: string | null): boolean {
+  if (!brand || !itemType) return false;
+  return brand.toLowerCase().includes('golden goose') && /(shoe|sneaker|footwear|boot|sandal)/i.test(itemType);
+}
+
 export interface AnalyzeResult {
   item: Item;
   pricing: PricingResult;
@@ -123,9 +128,22 @@ async function calculatePricing(
   }
 
   // Fallback to rule-based
+  const conditionMult = CONDITION_MULTIPLIERS[item.condition] ?? 0.65;
+  const itemTypeForFallback = `${item.category ?? ''} ${description}`.trim();
+
+  if (isGoldenGooseFootwear(item.brand, itemTypeForFallback)) {
+    const luxuryBasePrice = 145;
+    const price = Math.round(luxuryBasePrice * conditionMult);
+    return {
+      price,
+      confidence: 'medium',
+      comparables: [],
+      reasoning: `Rule-based luxury footwear fallback: Golden Goose base $${luxuryBasePrice} × condition ${conditionMult} = $${price}`,
+    };
+  }
+
   const basePrice = getBasePrice(item.category);
   const brandMult = getBrandMultiplier(item.brand);
-  const conditionMult = CONDITION_MULTIPLIERS[item.condition] ?? 0.65;
   const price = Math.round(basePrice * brandMult * conditionMult);
 
   return {

@@ -2,6 +2,27 @@
 
 import type { Item } from '../types.js';
 
+const KNOWN_BRAND_GUIDANCE = `Known brands often seen in this closet: Nike, Adidas, Jordan, Janie and Jack, Golden Goose.
+For Golden Goose kids sneakers, watch for these cues: side star applique, GGDB branding, SSTAR lettering on straps, Golden Goose heel or insole branding, Made in Italy stamp, and an intentionally vintage or distressed-looking sole. Do not mistake Golden Goose's intentional worn-in styling for severe damage unless there is additional real wear.`;
+
+function normalizeNullableText(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^(null|n\/a|na|none|unknown)$/i.test(trimmed)) return null;
+  return trimmed;
+}
+
+function normalizeVisionBrand(brand: string | null | undefined, notes: string | null | undefined): string | null {
+  const normalizedBrand = normalizeNullableText(brand);
+  const combined = `${normalizedBrand ?? ''} ${notes ?? ''}`.toLowerCase();
+
+  if (/golden\s*goose|ggdb|sstar/.test(combined)) return 'Golden Goose';
+  if (/janie\s+and\s+jack/.test(combined)) return 'Janie and Jack';
+
+  return normalizedBrand;
+}
+
 export interface VisionResult {
   brand: string | null;
   itemType: string | null;
@@ -57,16 +78,17 @@ export async function analyzePhoto(photoUrlOrPath: string): Promise<VisionResult
             content: [
               {
                 type: 'text',
-                text: `Analyze this kids clothing photo. Return ONLY valid JSON (no markdown, no explanation):
+                text: `Analyze this kids clothing or shoes photo. ${KNOWN_BRAND_GUIDANCE}
+Return ONLY valid JSON (no markdown, no explanation):
 {
   "brand": "brand name or null",
-  "itemType": "type of item (shirt, pants, dress, etc.)",
+  "itemType": "type of item (shirt, pants, dress, sneakers, sandals, etc.)",
   "size": "size label or null",
   "color": "primary color or null",
   "condition": "like_new, good, or fair",
-  "category": "category (tops, bottoms, dresses, etc.)",
+  "category": "category (tops, bottoms, dresses, footwear, sneakers, etc.)",
   "confidence": "high, medium, or low",
-  "notes": "any additional observations"
+  "notes": "any additional observations, including visible brand cues, style details, and real wear vs intentional distress"
 }`,
               },
               {
@@ -93,15 +115,17 @@ export async function analyzePhoto(photoUrlOrPath: string): Promise<VisionResult
     const jsonStr = content.replace(/```json\n?|```\n?/g, '').trim();
     const parsed = JSON.parse(jsonStr) as Partial<VisionResult & { notes: string }>;
 
+    const notes = parsed.notes ?? '';
+
     return {
-      brand: parsed.brand ?? null,
-      itemType: parsed.itemType ?? null,
-      size: parsed.size ?? null,
-      color: parsed.color ?? null,
+      brand: normalizeVisionBrand(parsed.brand ?? null, notes),
+      itemType: normalizeNullableText(parsed.itemType ?? null),
+      size: normalizeNullableText(parsed.size ?? null),
+      color: normalizeNullableText(parsed.color ?? null),
       condition: (parsed.condition as VisionResult['condition']) ?? 'good',
-      category: parsed.category ?? null,
+      category: normalizeNullableText(parsed.category ?? null),
       confidence: (parsed.confidence as Confidence) ?? 'low',
-      rawDescription: parsed.notes ?? '',
+      rawDescription: notes,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

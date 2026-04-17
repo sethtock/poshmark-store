@@ -104,6 +104,9 @@ describe('Pricing Engine', () => {
     const calculateRuleBasedPrice = (basePrice: number, brandMult: number, conditionMult: number) =>
       Math.round(basePrice * brandMult * conditionMult);
 
+    const calculateGoldenGooseFallback = (conditionMult: number) =>
+      Math.round(145 * conditionMult);
+
     it('calculates Nike shoes like_new correctly', () => {
       // Nike shoes: base=25, brand=0.75, condition=0.75
       // 25 * 0.75 * 0.75 = 14.0625 → 14
@@ -129,6 +132,11 @@ describe('Pricing Engine', () => {
       // Nike sneakers: base=30, brand=0.75, condition=0.75
       // 30 * 0.75 * 0.75 = 16.875 → 17
       expect(calculateRuleBasedPrice(30, 0.75, 0.75)).toBe(17);
+    });
+
+    it('uses luxury fallback for Golden Goose footwear', () => {
+      expect(calculateGoldenGooseFallback(0.65)).toBe(94);
+      expect(calculateGoldenGooseFallback(0.75)).toBe(109);
     });
   });
 

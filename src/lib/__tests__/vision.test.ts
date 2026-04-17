@@ -29,6 +29,22 @@ describe('Vision Analysis', () => {
   });
 
   describe('Vision result parsing', () => {
+    const normalizeNullableText = (value: string | null | undefined) => {
+      if (value == null) return null;
+      const trimmed = value.trim();
+      if (!trimmed) return null;
+      if (/^(null|n\/a|na|none|unknown)$/i.test(trimmed)) return null;
+      return trimmed;
+    };
+
+    const normalizeVisionBrand = (brand: string | null | undefined, notes: string | null | undefined) => {
+      const normalizedBrand = normalizeNullableText(brand);
+      const combined = `${normalizedBrand ?? ''} ${notes ?? ''}`.toLowerCase();
+      if (/golden\s*goose|ggdb|sstar/.test(combined)) return 'Golden Goose';
+      if (/janie\s+and\s+jack/.test(combined)) return 'Janie and Jack';
+      return normalizedBrand;
+    };
+
     it('extracts all fields from valid JSON response', () => {
       const raw = JSON.stringify({
         brand: 'Nike',
@@ -59,12 +75,12 @@ describe('Vision Analysis', () => {
     it('handles missing optional fields with defaults', () => {
       const parsed = JSON.parse('{"brand": "Nike"}');
       const result = {
-        brand: parsed.brand ?? null,
-        itemType: parsed.itemType ?? null,
-        size: parsed.size ?? null,
-        color: parsed.color ?? null,
+        brand: normalizeVisionBrand(parsed.brand ?? null, parsed.notes ?? ''),
+        itemType: normalizeNullableText(parsed.itemType ?? null),
+        size: normalizeNullableText(parsed.size ?? null),
+        color: normalizeNullableText(parsed.color ?? null),
         condition: parsed.condition ?? 'good',
-        category: parsed.category ?? null,
+        category: normalizeNullableText(parsed.category ?? null),
         confidence: parsed.confidence ?? 'low',
         rawDescription: parsed.notes ?? '',
       };
@@ -72,6 +88,11 @@ describe('Vision Analysis', () => {
       expect(result.condition).toBe('good');
       expect(result.confidence).toBe('low');
       expect(result.itemType).toBeNull();
+    });
+
+    it('normalizes Golden Goose from GGDB cues in notes', () => {
+      expect(normalizeVisionBrand(null, 'GGDB branding on straps and side star visible')).toBe('Golden Goose');
+      expect(normalizeVisionBrand('Golden Goose Kids', 'Made in Italy')).toBe('Golden Goose');
     });
   });
 
