@@ -130,6 +130,18 @@ interface ListingData {
   photoUrls: string[];
 }
 
+export interface ListingUpdateData {
+  listingIdOrUrl: string;
+  title?: string;
+  description?: string;
+  category?: string | null;
+  brand?: string | null;
+  size?: string | null;
+  condition?: string;
+  price?: number | null;
+  originalPrice?: number | null;
+}
+
 function normalizeNullableText(value: string | null | undefined): string | null {
   if (value == null) return null;
   const trimmed = value.trim();
@@ -212,10 +224,48 @@ function mapSize(size: string | null, category: string | null): { tab: 'Baby' | 
 async function clickIfVisible(page: Page, selector: string): Promise<boolean> {
   const locator = page.locator(selector).first();
   if (await locator.isVisible().catch(() => false)) {
-    await locator.click();
+    await locator.click({ force: true });
     return true;
   }
   return false;
+}
+
+async function fillControlledInput(page: Page, selector: string, value: string): Promise<void> {
+  await page.locator(selector).first().evaluate((input: any, v: string) => {
+    const win = globalThis as any;
+    const proto = input.tagName === 'TEXTAREA' ? win.HTMLTextAreaElement?.prototype : win.HTMLInputElement?.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+    if (setter) setter.call(input, v);
+    else input.value = v;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    input.dispatchEvent(new Event('blur', { bubbles: true }));
+  }, value);
+}
+
+async function dismissCommonListingModals(page: Page): Promise<void> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    let acted = false;
+    acted = await clickIfVisible(page, 'button:has-text("Yes"):visible') || acted;
+    acted = await clickIfVisible(page, 'button:has-text("Done"):visible') || acted;
+    acted = await clickIfVisible(page, 'button:has-text("Got it!"):visible') || acted;
+    acted = await clickIfVisible(page, 'button:has-text("Ok"):visible') || acted;
+    acted = await clickIfVisible(page, 'button:has-text("No"):visible') || acted;
+
+    if (!acted) break;
+    await page.waitForTimeout(400);
+  }
+}
+
+function resolveListingId(listingIdOrUrl: string): string {
+  const trimmed = listingIdOrUrl.trim();
+  const idMatch = trimmed.match(/([a-f0-9]{24})(?:$|[/?#])/i);
+  if (!idMatch) throw new Error(`Could not determine listing ID from: ${listingIdOrUrl}`);
+  return idMatch[1];
+}
+
+function getEditListingUrl(listingIdOrUrl: string): string {
+  return `${POSHMARK_URL}/edit-listing/${resolveListingId(listingIdOrUrl)}`;
 }
 
 export async function createListing(listing: ListingData): Promise<string> {
@@ -398,6 +448,174 @@ export async function createListing(listing: ListingData): Promise<string> {
     ).catch(() => []);
 
     throw new Error(`Could not determine listing URL after publish. Final URL: ${page.url()} Visible actions: ${JSON.stringify(visibleButtons)}`);
+  } finally {
+    await context.close();
+  }
+}
+
+export async function updateListing(update: ListingUpdateData): Promise<{ listingId: string; editUrl: string }> {
+  const browser = await getBrowser();
+  const context = await createPoshmarkContext(browser);
+  const page = await context.newPage();
+
+  try {
+    await login(page);
+
+    const listingId = resolveListingId(update.listingIdOrUrl);
+    const editUrl = getEditListingUrl(update.listingIdOrUrl);
+
+    await page.goto(editUrl, { waitUntil: 'domcontentloaded' });
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(1200);
+
+    if (update.title != null) {
+      await fillControlledInput(page, 'input[placeholder="What are you selling? (required)"]', update.title.substring(0, 100));
+      await page.waitForTimeout(200);
+    }
+
+    if (update.description != null) {
+      await fillControlledInput(page, 'textarea[placeholder="Describe it! (required)"]', update.description);
+      await page.waitForTimeout(200);
+    }
+
+    if (update.brand != null) {
+      const brandInput = page.locator('input[placeholder="Enter the Brand/Designer"]').first();
+      if (await brandInput.isVisible().catch(() => false)) {
+        await fillControlledInput(page, 'input[placeholder="Enter the Brand/Designer"]', update.brand);
+        await page.waitForTimeout(400);
+      }
+    }
+
+    if (update.category) {
+      const mappedCategory = mapCategory(update.category);
+      const categoryDropdown = page.locator('div.listing-editor__category-container div[data-test="dropdown"]').first();
+      if (await categoryDropdown.isVisible().catch(() => false)) {
+        await categoryDropdown.click({ force: true });
+        await page.waitForTimeout(300);
+        await page.locator(`a[data-et-name="${mappedCategory.department}"]`).click({ force: true });
+        await page.waitForTimeout(300);
+        if (mappedCategory.subcategory) {
+          await page.locator('div.listing-editor__category-container li', { hasText: mappedCategory.subcategory }).first().click({ force: true });
+          await page.waitForTimeout(400);
+        } else {
+          await page.keyboard.press('Escape').catch(() => {});
+        }
+      }
+    }
+
+    if (update.size != null) {
+      const mappedSize = mapSize(update.size, update.category ?? null);
+      if (mappedSize) {
+        const sizeDropdown = page.locator('div[data-test="dropdown"][selectortestlocator="size"]').first();
+        if (await sizeDropdown.isVisible().catch(() => false)) {
+          await sizeDropdown.scrollIntoViewIfNeeded();
+          await sizeDropdown.click({ force: true });
+          await page.waitForTimeout(400);
+
+          if (mappedSize.tab !== 'Baby' && mappedSize.tab !== 'Custom') {
+            const tabBtn = page.getByText(mappedSize.tab, { exact: true });
+            if (await tabBtn.isVisible().catch(() => false)) {
+              await tabBtn.click({ force: true });
+              await page.waitForTimeout(300);
+            }
+          }
+
+          if (mappedSize.tab === 'Custom') {
+            const customTab = page.getByText('Custom', { exact: true });
+            if (await customTab.isVisible().catch(() => false)) {
+              await customTab.click({ force: true });
+              await page.waitForTimeout(200);
+            }
+            await page.locator('input[id^="customSizeInput"]').first().fill(mappedSize.label);
+            await page.locator('button:has-text("Save")').first().click({ force: true });
+          } else {
+            const sizeBtn = page.locator(`button:has-text("${mappedSize.label}")`).first();
+            if (await sizeBtn.isVisible().catch(() => false)) {
+              await sizeBtn.click({ force: true });
+            }
+          }
+
+          await clickIfVisible(page, 'button:has-text("Done"):visible');
+          await page.waitForTimeout(300);
+        }
+      }
+    }
+
+    if (update.condition) {
+      try {
+        const conditionDropdown = page.locator('text=Select Condition').locator('xpath=ancestor::div[@data-test="dropdown"][1]');
+        await conditionDropdown.click({ force: true });
+        await page.waitForTimeout(300);
+        const conditionMap: Record<string, string> = {
+          nwt: 'New With Tags (NWT)',
+          nwot: 'Like New',
+          like_new: 'Like New',
+          good: 'Good',
+          fair: 'Fair',
+        };
+        await page.getByText(conditionMap[update.condition] ?? 'Good', { exact: true }).click({ force: true });
+        await page.waitForTimeout(300);
+      } catch {
+        // ignore condition edit failures for now
+      }
+    }
+
+    if (update.price != null || update.originalPrice != null) {
+      const listingPriceInput = page.locator('input[data-vv-name="listingPrice"], input.listing-price-input').first();
+      if (await listingPriceInput.isVisible().catch(() => false)) {
+        await listingPriceInput.click({ force: true });
+        await page.waitForTimeout(500);
+
+        const modalInputs = page.locator('.listing-price-suggestion-modal input');
+        const modalInputCount = await modalInputs.count();
+        if (modalInputCount >= 1 && update.price != null) {
+          await fillControlledInput(page, '.listing-price-suggestion-modal input', String(update.price));
+        }
+        if (modalInputCount >= 2 && update.originalPrice != null) {
+          await modalInputs.nth(1).evaluate((input: any, v: string) => {
+            const win = globalThis as any;
+            const setter = Object.getOwnPropertyDescriptor(win.HTMLInputElement?.prototype, 'value')?.set;
+            if (setter) setter.call(input, v);
+            else input.value = v;
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            input.dispatchEvent(new Event('blur', { bubbles: true }));
+          }, String(update.originalPrice));
+        }
+
+        await page.waitForTimeout(400);
+        await clickIfVisible(page, '.listing-price-suggestion-modal button:has-text("Done")');
+        await page.waitForTimeout(400);
+      }
+    }
+
+    await dismissCommonListingModals(page);
+
+    await page.getByRole('button', { name: 'Update' }).click({ force: true });
+    await page.waitForTimeout(2500);
+    await dismissCommonListingModals(page);
+    await clickIfVisible(page, 'button:has-text("Certify Listing")');
+    await page.waitForTimeout(500);
+    await clickIfVisible(page, 'button:has-text("Certify")');
+    await page.waitForTimeout(3000);
+
+    const shareModal = page.locator('.modal:visible, [data-test="modal"]:visible').filter({ hasText: 'Share Listing' }).first();
+    const shareVisible = await shareModal.isVisible().catch(() => false);
+    if (shareVisible) {
+      await clickIfVisible(page, 'button:has-text("List This Item"):visible');
+      await page.waitForTimeout(1500);
+      await clickIfVisible(page, 'button:has-text("Certify Listing")');
+      await page.waitForTimeout(500);
+      await clickIfVisible(page, 'button:has-text("Certify")');
+      await page.waitForTimeout(3000);
+    } else {
+      const visibleErrors = await page.locator('.form__error-message:visible').allTextContents().catch(() => []);
+      if (visibleErrors.length > 0) {
+        throw new Error(`Poshmark update validation failed: ${visibleErrors.join(' | ')}`);
+      }
+    }
+
+    return { listingId, editUrl };
   } finally {
     await context.close();
   }

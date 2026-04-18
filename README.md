@@ -86,6 +86,9 @@ npx tsx src/post-ready-batch.ts
 
 # Retry the first ready_to_post row only
 npx tsx src/post-single-ready.ts
+
+# Push the current sheet values for one already-posted item back to Poshmark
+npm run poshmark:update-item -- item-031
 ```
 
 ### Poshmark auth bootstrap
@@ -140,6 +143,11 @@ Poshmark Store/
 
 - **All Items** — Full inventory with all columns
 - **Summary** — Stats dashboard (counts, total listed/sold value)
+
+Price columns on `All Items` now mean:
+- **List Price** — original / anchor price for the listing
+- **Current Price** — current asking price on Poshmark
+- **Accepted Sell Price** — actual accepted / final sold amount when the item sells
 
 ## Operator Notes
 

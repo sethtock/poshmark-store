@@ -23,8 +23,9 @@ export interface Item {
   color: string | null;
   condition: 'nwt' | 'nwot' | 'like_new' | 'good' | 'fair';
   category: string | null;
-  initialPrice: number | null;
-  currentPrice: number | null;
+  initialPrice: number | null; // list/original price
+  currentPrice: number | null; // current asking price
+  acceptedSellPrice: number | null; // final accepted/sold amount
   poshmarkUrl: string | null;
   status: ItemStatus;
   notes: string;

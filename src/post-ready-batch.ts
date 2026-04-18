@@ -1,5 +1,5 @@
 import { loadEnv } from './lib/env.js';
-import { getSheetsClient, getSpreadsheetId, refreshSummary, updateItem } from './lib/sheets.js';
+import { ALL_ITEMS_DATA_RANGE, SHEET_COLUMN, getSheetsClient, getSpreadsheetId, refreshSummary, updateItem } from './lib/sheets.js';
 import { createListing, closeBrowser } from './lib/poshmark.js';
 import { getAuth, getDriveClient, listPhotosInFolder, getPhotoUrl, downloadAndConvertPhoto } from './lib/drive.js';
 import { getListingTitle } from './lib/listing-text.js';
@@ -24,18 +24,18 @@ async function getReadyItems(): Promise<Item[]> {
   const spreadsheetId = getSpreadsheetId();
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'All Items!A2:R',
+    range: ALL_ITEMS_DATA_RANGE,
     valueRenderOption: 'FORMATTED_VALUE',
   });
 
   const rows = response.data.values ?? [];
-  const readyRows = rows.filter((row) => row[14] === 'ready_to_post');
+  const readyRows = rows.filter((row) => row[SHEET_COLUMN.status] === 'ready_to_post');
   const drive = await getDriveClient();
   const auth = await getAuth();
 
   const items: Item[] = [];
   for (const row of readyRows) {
-    const folderUrl = row[3] ?? '';
+    const folderUrl = row[SHEET_COLUMN.driveFolder] ?? '';
     const folderIdMatch = folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/);
     const folderId = folderIdMatch?.[1];
     if (!folderId) {
@@ -48,25 +48,26 @@ async function getReadyItems(): Promise<Item[]> {
     const localPhotoPaths = await Promise.all(photos.map((photo) => downloadAndConvertPhoto(drive, photo, auth)));
 
     items.push({
-      id: row[0] ?? '',
-      dateAdded: rowToDate(row[1]),
-      folderName: row[2] ?? '',
+      id: row[SHEET_COLUMN.itemId] ?? '',
+      dateAdded: rowToDate(row[SHEET_COLUMN.dateAdded]),
+      folderName: row[SHEET_COLUMN.folderName] ?? '',
       folderId,
-      title: row[4] ?? '',
-      description: row[5] ?? '',
-      brand: sanitizeCell(row[6]),
-      size: sanitizeCell(row[7]),
-      condition: (row[8] as Item['condition']) || 'good',
-      category: sanitizeCell(row[9]),
+      title: row[SHEET_COLUMN.title] ?? '',
+      description: row[SHEET_COLUMN.description] ?? '',
+      brand: sanitizeCell(row[SHEET_COLUMN.brand]),
+      size: sanitizeCell(row[SHEET_COLUMN.size]),
+      condition: (row[SHEET_COLUMN.condition] as Item['condition']) || 'good',
+      category: sanitizeCell(row[SHEET_COLUMN.category]),
       photoUrls,
       localPhotoPaths,
-      initialPrice: row[11] ? Number(row[11]) : null,
-      currentPrice: row[12] ? Number(row[12]) : null,
-      poshmarkUrl: sanitizeCell(row[13]),
-      status: (row[14] as Item['status']) || 'ready_to_post',
-      pricingReasoning: row[15] ?? '',
-      pricingConfidence: (row[16] as Item['pricingConfidence']) || 'medium',
-      notes: row[17] ?? '',
+      initialPrice: row[SHEET_COLUMN.listPrice] ? Number(row[SHEET_COLUMN.listPrice]) : null,
+      currentPrice: row[SHEET_COLUMN.currentPrice] ? Number(row[SHEET_COLUMN.currentPrice]) : null,
+      acceptedSellPrice: row[SHEET_COLUMN.acceptedSellPrice] ? Number(row[SHEET_COLUMN.acceptedSellPrice]) : null,
+      poshmarkUrl: sanitizeCell(row[SHEET_COLUMN.poshmarkUrl]),
+      status: (row[SHEET_COLUMN.status] as Item['status']) || 'ready_to_post',
+      pricingReasoning: row[SHEET_COLUMN.pricingReasoning] ?? '',
+      pricingConfidence: (row[SHEET_COLUMN.confidence] as Item['pricingConfidence']) || 'medium',
+      notes: row[SHEET_COLUMN.notes] ?? '',
       color: null,
       lastUpdated: new Date().toISOString(),
     });

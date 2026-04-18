@@ -106,7 +106,11 @@ Chris replies → Seth proceeds or adjusts.
 ## Google Sheets Structure
 
 ### Tab: `All Items`
-Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Description` | `Brand` | `Size` | `Condition` | `Category` | `Photo Links` | `Initial Price` | `Current Price` | `Poshmark URL` | `Status` | `Pricing Reasoning` | `Confidence` | `Notes`
+Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Title` | `Description` | `Brand` | `Size` | `Condition` | `Category` | `Photo Links` | `List Price` | `Current Price` | `Accepted Sell Price` | `Poshmark URL` | `Status` | `Pricing Reasoning` | `Confidence` | `Notes`
+
+- **List Price** = original / anchor list price
+- **Current Price** = live asking price
+- **Accepted Sell Price** = final accepted or sold amount
 
 ### Tab: `Summary`
 - Total items processed
@@ -211,6 +215,7 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 - **Saved OTP challenge flow** — request and submit are split so submitting a code no longer triggers another SMS
 - **Current listing entry path identified** — `/sell` redirects to `/create-listing`; old `/modal/listing/create` route is stale
 - **Ready-item posting flow working** — `src/post-ready-batch.ts` and `src/post-single-ready.ts` successfully post listings and update the sheet to `posted`
+- **Direct listing edit flow working** — `src/update-sheet-item-on-poshmark.ts` can push title/description/price updates from a sheet row back to an existing Poshmark listing
 - **Vision size-tag detection improved** — higher-detail local analysis plus sideways-tag handling now correctly extracts sizes like `6C`
 - **Footwear category mapping improved** — moccasins and crib shoes now map to Poshmark Shoes so baby moccasin listings can post cleanly
 

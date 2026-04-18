@@ -195,6 +195,7 @@ export async function folderToItem(
     category: null,
     initialPrice: null,
     currentPrice: null,
+    acceptedSellPrice: null,
     poshmarkUrl: null,
     status: 'pending_review',
     notes: '',

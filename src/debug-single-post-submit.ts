@@ -1,6 +1,6 @@
 import { writeFile } from 'fs/promises';
 import { loadEnv } from './lib/env.js';
-import { getSheetsClient, getSpreadsheetId } from './lib/sheets.js';
+import { ALL_ITEMS_DATA_RANGE, SHEET_COLUMN, getSheetsClient, getSpreadsheetId } from './lib/sheets.js';
 import { getDriveClient, listPhotosInFolder, getPhotoUrl } from './lib/drive.js';
 import { getBrowser, closeBrowser } from './lib/poshmark.js';
 import { createPoshmarkContext, pageLooksLoggedIn } from './lib/poshmark-session.js';
@@ -74,11 +74,11 @@ async function downloadToTemp(url: string): Promise<string> {
 async function getFirstReadyItem(): Promise<Item> {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
-  const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'All Items!A2:R', valueRenderOption: 'FORMATTED_VALUE' });
+  const response = await sheets.spreadsheets.values.get({ spreadsheetId, range: ALL_ITEMS_DATA_RANGE, valueRenderOption: 'FORMATTED_VALUE' });
   const rows = response.data.values ?? [];
-  const row = rows.find((r) => r[14] === 'ready_to_post');
+  const row = rows.find((r) => r[SHEET_COLUMN.status] === 'ready_to_post');
   if (!row) throw new Error('No ready_to_post items found');
-  const folderUrl = row[3] ?? '';
+  const folderUrl = row[SHEET_COLUMN.driveFolder] ?? '';
   const folderIdMatch = folderUrl.match(/folders\/([a-zA-Z0-9_-]+)/);
   const folderId = folderIdMatch?.[1];
   if (!folderId) throw new Error(`Could not parse folder ID from ${folderUrl}`);
@@ -86,25 +86,26 @@ async function getFirstReadyItem(): Promise<Item> {
   const photos = await listPhotosInFolder(drive, folderId);
   const photoUrls = photos.map((p) => getPhotoUrl(p.id));
   return {
-    id: row[0] ?? '',
-    dateAdded: row[1] ? new Date(`${row[1]}T00:00:00.000Z`).toISOString() : new Date().toISOString(),
-    folderName: row[2] ?? '',
+    id: row[SHEET_COLUMN.itemId] ?? '',
+    dateAdded: row[SHEET_COLUMN.dateAdded] ? new Date(`${row[SHEET_COLUMN.dateAdded]}T00:00:00.000Z`).toISOString() : new Date().toISOString(),
+    folderName: row[SHEET_COLUMN.folderName] ?? '',
     folderId,
-    title: row[4] ?? '',
-    description: row[5] ?? '',
-    brand: row[6] || null,
-    size: row[7] || null,
-    condition: (row[8] as Item['condition']) || 'good',
-    category: row[9] || null,
+    title: row[SHEET_COLUMN.title] ?? '',
+    description: row[SHEET_COLUMN.description] ?? '',
+    brand: row[SHEET_COLUMN.brand] || null,
+    size: row[SHEET_COLUMN.size] || null,
+    condition: (row[SHEET_COLUMN.condition] as Item['condition']) || 'good',
+    category: row[SHEET_COLUMN.category] || null,
     photoUrls,
     localPhotoPaths: [],
-    initialPrice: row[11] ? Number(row[11]) : null,
-    currentPrice: row[12] ? Number(row[12]) : null,
-    poshmarkUrl: row[13] || null,
-    status: (row[14] as Item['status']) || 'ready_to_post',
-    pricingReasoning: row[15] ?? '',
-    pricingConfidence: (row[16] as Item['pricingConfidence']) || 'medium',
-    notes: row[17] ?? '',
+    initialPrice: row[SHEET_COLUMN.listPrice] ? Number(row[SHEET_COLUMN.listPrice]) : null,
+    currentPrice: row[SHEET_COLUMN.currentPrice] ? Number(row[SHEET_COLUMN.currentPrice]) : null,
+    acceptedSellPrice: row[SHEET_COLUMN.acceptedSellPrice] ? Number(row[SHEET_COLUMN.acceptedSellPrice]) : null,
+    poshmarkUrl: row[SHEET_COLUMN.poshmarkUrl] || null,
+    status: (row[SHEET_COLUMN.status] as Item['status']) || 'ready_to_post',
+    pricingReasoning: row[SHEET_COLUMN.pricingReasoning] ?? '',
+    pricingConfidence: (row[SHEET_COLUMN.confidence] as Item['pricingConfidence']) || 'medium',
+    notes: row[SHEET_COLUMN.notes] ?? '',
     color: null,
     lastUpdated: new Date().toISOString(),
   };

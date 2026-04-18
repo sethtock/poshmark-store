@@ -1,17 +1,17 @@
-import { loadEnv } from './lib/env.ts';
-import { getSheetsClient, getSpreadsheetId } from './lib/sheets.ts';
-import { getAuth, getDriveClient, listPhotosInFolder, downloadAndConvertPhoto } from './lib/drive.ts';
+import { loadEnv } from './lib/env.js';
+import { ALL_ITEMS_DATA_RANGE, SHEET_COLUMN, getSheetsClient, getSpreadsheetId } from './lib/sheets.js';
+import { getAuth, getDriveClient, listPhotosInFolder, downloadAndConvertPhoto } from './lib/drive.js';
 import { getBrowser, closeBrowser } from './lib/poshmark.js';
 import { createPoshmarkContext, pageLooksLoggedIn } from './lib/poshmark-session.js';
-import { generateListingTitle } from './lib/listing-text.ts';
+import { generateListingTitle } from './lib/listing-text.js';
 loadEnv();
 
 async function getFirstReadyItem() {
   const sheets = await getSheetsClient();
   const spreadsheetId = getSpreadsheetId();
-  const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range: 'All Items!A2:R', valueRenderOption: 'FORMATTED_VALUE' });
+  const resp = await sheets.spreadsheets.values.get({ spreadsheetId, range: ALL_ITEMS_DATA_RANGE, valueRenderOption: 'FORMATTED_VALUE' });
   const rows = resp.data.values ?? [];
-  return rows.find((r) => r[14] === 'ready_to_post');
+  return rows.find((r) => r[SHEET_COLUMN.status] === 'ready_to_post');
 }
 
 function mapCategory(category: string): { department: 'kids'; subcategory: string | null } {
@@ -68,7 +68,7 @@ async function downloadToTemp(url: string): Promise<string> {
 async function main() {
   const row = await getFirstReadyItem();
   if (!row) { console.log('No ready item'); process.exit(0); }
-  const folderId = (row[3] ?? '').match(/folders\/([a-zA-Z0-9_-]+)/)?.[1];
+  const folderId = (row[SHEET_COLUMN.driveFolder] ?? '').match(/folders\/([a-zA-Z0-9_-]+)/)?.[1];
   if (!folderId) throw new Error('no folder');
   const drive = await getDriveClient();
   const auth = await getAuth();
@@ -96,16 +96,16 @@ async function main() {
   await clickIfVisible(page, 'button:has-text("Got it!"):visible');
   await clickIfVisible(page, 'button:has-text("Ok"):visible');
 
-  const title = generateListingTitle({ id: row[0] ?? '', brand: row[6] || null, size: row[7] || null, color: null, category: row[9] || null });
+  const title = generateListingTitle({ id: row[SHEET_COLUMN.itemId] ?? '', brand: row[SHEET_COLUMN.brand] || null, size: row[SHEET_COLUMN.size] || null, color: null, category: row[SHEET_COLUMN.category] || null });
   await page.locator('input[placeholder="What are you selling? (required)"]').first().fill(title.substring(0, 100));
-  await page.locator('textarea[placeholder="Describe it! (required)"]').first().fill(row[5] ?? '');
+  await page.locator('textarea[placeholder="Describe it! (required)"]').first().fill(row[SHEET_COLUMN.description] ?? '');
 
-  if (row[6]) {
-    await page.locator('input[placeholder="Enter the Brand/Designer"]').first().fill(row[6]);
+  if (row[SHEET_COLUMN.brand]) {
+    await page.locator('input[placeholder="Enter the Brand/Designer"]').first().fill(row[SHEET_COLUMN.brand]);
     await page.waitForTimeout(500);
   }
 
-  const mc = mapCategory(row[9] ?? 'Kids');
+  const mc = mapCategory(row[SHEET_COLUMN.category] ?? 'Kids');
   await page.locator('div.listing-editor__category-container div[data-test="dropdown"]').first().click();
   await page.waitForTimeout(300);
   await page.locator(`a[data-et-name="${mc.department}"]`).click();
@@ -118,7 +118,7 @@ async function main() {
     await page.waitForTimeout(500);
   }
 
-  const ms = mapSize(row[7]);
+  const ms = mapSize(row[SHEET_COLUMN.size]);
   if (ms) {
     const sd = page.locator('div[data-test="dropdown"][selectortestlocator="size"]').first();
     await sd.scrollIntoViewIfNeeded();
@@ -152,12 +152,12 @@ async function main() {
     await cd.click();
     await page.waitForTimeout(300);
     const condMap: Record<string, string> = { nwt: 'New With Tags (NWT)', nwot: 'Like New', like_new: 'Like New', good: 'Good', fair: 'Fair' };
-    await page.getByText(condMap[row[8] ?? 'good'] ?? 'Good', { exact: true }).click();
+    await page.getByText(condMap[row[SHEET_COLUMN.condition] ?? 'good'] ?? 'Good', { exact: true }).click();
     await page.waitForTimeout(500);
   } catch {}
 
   // Price
-  const price = Number(row[12]) || 0;
+  const price = Number(row[SHEET_COLUMN.currentPrice]) || 0;
   const lp = page.locator('input[data-vv-name="listingPrice"], input.listing-price-input').first();
   await lp.fill(String(price));
 
@@ -171,8 +171,8 @@ async function main() {
   await page.waitForTimeout(3000);
 
   // Snapshot after Next
-  const afterNextActions = await page.locator('button:visible, a:visible').evaluateAll((els: Element[]) =>
-    els.map((el) => ({ tag: (el as HTMLElement).tagName, text: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120), href: (el as HTMLAnchorElement).href || null }))
+  const afterNextActions = await page.locator('button:visible, a:visible').evaluateAll((els: any[]) =>
+    els.map((el) => ({ tag: el.tagName, text: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120), href: el.href || null }))
       .filter((x: any) => x.text || x.href).slice(0, 30)
   ).catch(() => []);
 
@@ -187,8 +187,8 @@ async function main() {
     await page.waitForTimeout(3000);
   }
 
-  const finalActions = await page.locator('button:visible, a:visible').evaluateAll((els: Element[]) =>
-    els.map((el) => ({ tag: (el as HTMLElement).tagName, text: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120), href: (el as HTMLAnchorElement).href || null }))
+  const finalActions = await page.locator('button:visible, a:visible').evaluateAll((els: any[]) =>
+    els.map((el) => ({ tag: el.tagName, text: (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120), href: el.href || null }))
       .filter((x: any) => x.text || x.href).slice(0, 30)
   ).catch(() => []);
 

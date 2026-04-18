@@ -74,7 +74,7 @@ function normalizeBrandForDescription(brand: string | null | undefined): string 
 }
 
 function normalizeCategoryForDescription(category: string | null | undefined): string | null {
-  const normalized = categoryToTitle(category);
+  const normalized = categoryToTitle(category ?? null);
   if (!normalized) return null;
   if (normalized === 'Shoes') return 'pair of shoes';
   if (normalized === 'Pajamas') return 'pajama set';

@@ -38,12 +38,36 @@ export function getSpreadsheetId(): string {
   return id;
 }
 
-const HEADERS = [
+export const HEADERS = [
   'Item ID', 'Date Added', 'Folder Name', 'Drive Folder', 'Title', 'Description', 'Brand', 'Size',
-  'Condition', 'Category', 'Photo Links', 'Initial Price', 'Current Price',
+  'Condition', 'Category', 'Photo Links', 'List Price', 'Current Price', 'Accepted Sell Price',
   'Poshmark URL', 'Status', 'Pricing Reasoning', 'Confidence', 'Notes',
 ];
-const HEADER_COUNT = 18; // A through R
+export const HEADER_COUNT = 19; // A through S
+export const ALL_ITEMS_HEADER_RANGE = 'All Items!A1:S1';
+export const ALL_ITEMS_DATA_RANGE = 'All Items!A2:S';
+
+export const SHEET_COLUMN = {
+  itemId: 0,
+  dateAdded: 1,
+  folderName: 2,
+  driveFolder: 3,
+  title: 4,
+  description: 5,
+  brand: 6,
+  size: 7,
+  condition: 8,
+  category: 9,
+  photoLinks: 10,
+  listPrice: 11,
+  currentPrice: 12,
+  acceptedSellPrice: 13,
+  poshmarkUrl: 14,
+  status: 15,
+  pricingReasoning: 16,
+  confidence: 17,
+  notes: 18,
+} as const;
 
 const STATUS_COLORS: Record<ItemStatus, string> = {
   needs_pricing: '#FFE8CC',
@@ -77,7 +101,7 @@ export async function createSpreadsheet(sheets: sheets_v4.Sheets, title: string)
     requestBody: {
       properties: { title },
       sheets: [
-        { properties: { title: 'All Items', sheetType: 'GRID', gridProperties: { rowCount: 1000, columnCount: 18 } } },
+        { properties: { title: 'All Items', sheetType: 'GRID', gridProperties: { rowCount: 1000, columnCount: HEADER_COUNT } } },
         { properties: { title: 'Summary', sheetType: 'GRID', gridProperties: { rowCount: 50, columnCount: 6 } } },
       ],
     },
@@ -93,7 +117,7 @@ export async function createSpreadsheet(sheets: sheets_v4.Sheets, title: string)
     const sheetId = allItemsSheet.properties.sheetId;
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: 'All Items!A1:R1',
+      range: ALL_ITEMS_HEADER_RANGE,
       valueInputOption: 'RAW',
       requestBody: { values: [HEADERS] },
     });
@@ -204,6 +228,7 @@ export async function writeItem(sheets: sheets_v4.Sheets, spreadsheetId: string,
     item.photoUrls.join('\n'),
     item.initialPrice ?? '',
     item.currentPrice ?? '',
+    item.acceptedSellPrice ?? '',
     item.poshmarkUrl ?? '',
     item.status,
     item.pricingReasoning ?? '',
@@ -213,7 +238,7 @@ export async function writeItem(sheets: sheets_v4.Sheets, spreadsheetId: string,
 
   const response = await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: 'All Items!A:R',
+    range: `All Items!A:${String.fromCharCode(64 + HEADER_COUNT)}`,
     valueInputOption: 'RAW',
     insertDataOption: 'INSERT_ROWS',
     requestBody: { values: [row] },
@@ -249,6 +274,7 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
     item.photoUrls.join('\n'),
     item.initialPrice ?? '',
     item.currentPrice ?? '',
+    item.acceptedSellPrice ?? '',
     item.poshmarkUrl ?? '',
     item.status,
     item.pricingReasoning ?? '',
@@ -258,12 +284,12 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `All Items!A${actualRow}:R${actualRow}`,
+    range: `All Items!A${actualRow}:S${actualRow}`,
     valueInputOption: 'RAW',
     requestBody: { values: [row] },
   });
 
-  // Color-code the status cell (column N = index 13)
+  // Color-code the status cell
   const sheetsMap = await getSheetsMap(sheets, spreadsheetId);
   const allItemsSheetId = sheetsMap['All Items'];
   if (allItemsSheetId != null) {
@@ -274,7 +300,7 @@ export async function updateItem(sheets: sheets_v4.Sheets, spreadsheetId: string
         requests: [
           {
             repeatCell: {
-              range: { sheetId: allItemsSheetId, startRowIndex: actualRow - 1, endRowIndex: actualRow, startColumnIndex: 14, endColumnIndex: 15 },
+              range: { sheetId: allItemsSheetId, startRowIndex: actualRow - 1, endRowIndex: actualRow, startColumnIndex: SHEET_COLUMN.status, endColumnIndex: SHEET_COLUMN.status + 1 },
               cell: { userEnteredFormat: { backgroundColor: rgb } },
               fields: 'userEnteredFormat(backgroundColor)',
             },
@@ -296,15 +322,16 @@ function hexToRgb(hex: string): { red: number; green: number; blue: number } {
 export async function refreshSummary(sheets: sheets_v4.Sheets, spreadsheetId: string) {
   const response = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: 'All Items!A2:R',
+    range: ALL_ITEMS_DATA_RANGE,
     valueRenderOption: 'FORMATTED_VALUE',
   });
 
   const rows = response.data.values ?? [];
   const allItems = rows.map((r) => ({
-    status: r[14] as ItemStatus,
-    price: parseFloat(r[12]) || 0,
-    initialPrice: parseFloat(r[11]) || 0,
+    status: r[SHEET_COLUMN.status] as ItemStatus,
+    currentPrice: parseFloat(r[SHEET_COLUMN.currentPrice]) || 0,
+    listPrice: parseFloat(r[SHEET_COLUMN.listPrice]) || 0,
+    acceptedSellPrice: parseFloat(r[SHEET_COLUMN.acceptedSellPrice]) || 0,
   }));
 
   const total = allItems.length;
@@ -312,10 +339,10 @@ export async function refreshSummary(sheets: sheets_v4.Sheets, spreadsheetId: st
     acc[r.status] = (acc[r.status] || 0) + 1;
     return acc;
   }, {});
-  const totalListed = allItems.filter((r) => ['posted', 'needs_shipped', 'shipped', 'sold'].includes(r.status)).reduce((s, r) => s + r.initialPrice, 0);
-  const totalSold = allItems.filter((r) => r.status === 'sold').reduce((s, r) => s + r.price, 0);
+  const totalListed = allItems.filter((r) => ['posted', 'needs_shipped', 'shipped', 'sold'].includes(r.status)).reduce((s, r) => s + r.listPrice, 0);
+  const totalSold = allItems.filter((r) => r.status === 'sold').reduce((s, r) => s + (r.acceptedSellPrice || r.currentPrice), 0);
   const soldItems = allItems.filter((r) => r.status === 'sold');
-  const avgSellPrice = soldItems.length > 0 ? soldItems.reduce((s, r) => s + r.price, 0) / soldItems.length : NaN;
+  const avgSellPrice = soldItems.length > 0 ? soldItems.reduce((s, r) => s + (r.acceptedSellPrice || r.currentPrice), 0) / soldItems.length : NaN;
 
   const summaryRows = [
     ['Metric', 'Value'],

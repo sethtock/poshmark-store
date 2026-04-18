@@ -24,6 +24,7 @@ const baseItem: Item = {
   category: 'tops',
   initialPrice: null,
   currentPrice: null,
+  acceptedSellPrice: null,
   poshmarkUrl: null,
   status: 'pending_review',
   notes: '',
