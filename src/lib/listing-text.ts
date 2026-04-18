@@ -12,7 +12,7 @@ const CATEGORY_TITLE_MAP: Array<[RegExp, string]> = [
   [/dress/i, 'Dress'],
   [/(shirt|top|blouse|sweater)/i, 'Top'],
   [/(pants|leggings|shorts|bottoms)/i, 'Pants'],
-  [/(jacket|coat)/i, 'Jacket'],
+  [/(blazer|jacket|coat)/i, 'Jacket'],
   [/(matching sets|set)/i, 'Set'],
   [/(one pieces|one piece|onesie)/i, 'One Piece'],
   [/(pajamas|pajama)/i, 'Pajamas'],
@@ -21,6 +21,7 @@ const CATEGORY_TITLE_MAP: Array<[RegExp, string]> = [
   [/(shoes|shoe|sneakers|sneaker|footwear)/i, 'Shoes'],
   [/(swim|swimsuit)/i, 'Swimwear'],
   [/(costumes|costume)/i, 'Costume'],
+  [/(hat|cap)/i, 'Hat'],
   [/(accessories|accessory)/i, 'Accessory'],
 ];
 

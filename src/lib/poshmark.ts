@@ -149,10 +149,11 @@ function mapCategory(category: string): { department: 'kids'; subcategory: strin
   if (normalized.includes('dress')) return { department: 'kids', subcategory: 'Dresses' };
   if (isFootwearCategory(category)) return { department: 'kids', subcategory: 'Shoes' };
   if (normalized.includes('pant') || normalized.includes('legging') || normalized.includes('short') || normalized.includes('bottom')) return { department: 'kids', subcategory: 'Bottoms' };
-  if (normalized.includes('jacket') || normalized.includes('coat')) return { department: 'kids', subcategory: 'Jackets & Coats' };
+  if (normalized.includes('jacket') || normalized.includes('coat') || normalized.includes('blazer')) return { department: 'kids', subcategory: 'Jackets & Coats' };
   if (normalized.includes('set')) return { department: 'kids', subcategory: 'Matching Sets' };
   if (normalized.includes('pajama')) return { department: 'kids', subcategory: 'Pajamas' };
   if (normalized.includes('one piece') || normalized.includes('onesie')) return { department: 'kids', subcategory: 'One Pieces' };
+  if (normalized.includes('accessor') || normalized.includes('hat') || normalized.includes('cap')) return { department: 'kids', subcategory: 'Accessories' };
   if (normalized.includes('shirt') || normalized.includes('top') || normalized.includes('sweater')) return { department: 'kids', subcategory: 'Shirts & Tops' };
 
   return { department: 'kids', subcategory: null };
