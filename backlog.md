@@ -48,6 +48,31 @@ Pre-seed `comparables.json` with known sold comps for high-value brands (Burberr
 
 ---
 
+### Track pricing provenance and cache freshness
+**Priority:** high
+**Status:** open
+
+The current `comparables.json` cache stores finished price recommendations per brand/size/category but loses the raw comp data and doesn't track when entries were last updated.
+
+**What to add per cache entry:**
+- `lastUpdated` — ISO timestamp of when this entry was last refreshed (used for staleness判断)
+- `source` — `'manual'` | `'live_search'` | `'seed'` so we know where it came from
+- `rawComps` — array of the actual sold comp records used to calculate the price, each containing:
+  - `title`, `soldPrice`, `soldDate`, `size`, `condition`, `url` (or equivalent Poshmark listing reference)
+- `reasoning` — brief note on how the final price was derived (e.g. "median of 5 comps, excl. outliers")
+
+**Why it matters:**
+- If a price looks wrong later, you can open the cache entry and trace it back to the exact comps that produced it
+- Stale entries (e.g. older than 30–60 days) can be flagged or auto-refreshed
+- New brands that get their first comp via live search have a full audit trail from day one
+
+**Files likely involved:**
+- `src/lib/comparables.ts` — schema change + `saveComp()` / `updateComp()` functions
+- `src/lib/pricing.ts` — store raw comps and reasoning alongside the price
+- `src/types.ts` — `ComparableEntry` type redesign
+
+---
+
 ## Done
 
 - [x] Accept `needs_pricing` as a distinct status alongside `pending_review`
@@ -55,3 +80,4 @@ Pre-seed `comparables.json` with known sold comps for high-value brands (Burberr
 - [x] Direct Poshmark edit flow (update title/description/price/condition on existing listings)
 - [x] Bulk refresh stale posted listings (old boilerplate descriptions, generic titles)
 - [x] Skip category edits in the update flow (category picker is flaky on edit)
+- [x] Add backlog.md for features and bug fixes
