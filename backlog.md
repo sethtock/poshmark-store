@@ -73,6 +73,20 @@ The current `comparables.json` cache stores finished price recommendations per b
 
 ---
 
+### Generalize README and repo instructions
+**Priority:** medium
+**Status:** open
+
+The current README and other docs contain personal references ("my", "I", closet/Poshmark account details specific to the owner, hardcoded folder IDs, etc.). Rewrite them for a general developer audience so the repo is genuinely reusable by anyone cloning it.
+
+**What to generalize:**
+- Replace personal pronouns with impersonal ones ("the user" / "the developer")
+- Remove or parameterize account-specific values (Poshmark username, Drive folder IDs, spreadsheet IDs, etc.) — use environment variables or `.env`
+- Make setup instructions self-contained: how to create a Google Cloud project, enable the Sheets/Drive APIs, create a service account, configure Poshmark auth, etc.
+- Ensure all scripts are parameterized so running `npm start` without config produces clear, actionable errors rather than silently using wrong credentials
+
+---
+
 ## Done
 
 - [x] Accept `needs_pricing` as a distinct status alongside `pending_review`
