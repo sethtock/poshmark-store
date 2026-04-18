@@ -12,6 +12,7 @@
     "poshmark:auth:request": "tsx src/inspect-poshmark-api.ts",
     "poshmark:auth:submit": "tsx src/inspect-poshmark-api.ts",
     "poshmark:update-item": "tsx src/update-sheet-item-on-poshmark.ts",
+    "poshmark:refresh-stale": "tsx src/refresh-stale-posted-listings.ts",
     "test": "vitest",
     "test:ci": "vitest run --reporter=default",
     "test:watch": "vitest --watch"

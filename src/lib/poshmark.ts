@@ -364,8 +364,14 @@ export async function createListing(listing: ListingData): Promise<string> {
         if (await customTab.isVisible().catch(() => false)) {
           await customTab.click();
         }
-        await page.locator('input[id^="customSizeInput"]').first().fill(mappedSize.label);
-        await page.locator('button:has-text("Save")').first().click();
+        const customSizeInput = page.locator('input[id^="customSizeInput"]').first();
+        const isEditable = await customSizeInput.isEditable().catch(() => false);
+        if (isEditable) {
+          await customSizeInput.fill(mappedSize.label);
+          await page.locator('button:has-text("Save")').first().click();
+        } else {
+          console.warn(`Size input is locked/disabled for size "${mappedSize.label}", skipping size update.`);
+        }
       } else {
         // Try to find the size button directly (it may be in Baby tab or already visible)
         const sizeBtn = page.locator(`button:has-text("${mappedSize.label}")`).first();
