@@ -46,6 +46,7 @@ const HEADERS = [
 const HEADER_COUNT = 18; // A through R
 
 const STATUS_COLORS: Record<ItemStatus, string> = {
+  needs_pricing: '#FFE8CC',
   pending_review: '#FFF3CD',
   ready_to_post: '#E2E3E5',
   posted: '#CCE5FF',
@@ -319,6 +320,7 @@ export async function refreshSummary(sheets: sheets_v4.Sheets, spreadsheetId: st
   const summaryRows = [
     ['Metric', 'Value'],
     ['Total Items Processed', total],
+    ['Items Needs Pricing', byStatus['needs_pricing'] ?? 0],
     ['Items Ready to Post', byStatus['ready_to_post'] ?? 0],
     ['Items Pending Review', byStatus['pending_review'] ?? 0],
     ['Items Posted', byStatus['posted'] ?? 0],
@@ -333,7 +335,7 @@ export async function refreshSummary(sheets: sheets_v4.Sheets, spreadsheetId: st
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: 'Summary!A1:B12',
+    range: 'Summary!A1:B13',
     valueInputOption: 'RAW',
     requestBody: { values: summaryRows },
   });

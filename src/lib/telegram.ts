@@ -109,6 +109,7 @@ export async function notifyError(itemId: string, error: string): Promise<void> 
 export async function notifyRunSummary(
   processed: number,
   posted: number,
+  needsPricing: number,
   pendingReview: number,
   readyToPost: number,
   sold: number,
@@ -119,6 +120,7 @@ export async function notifyRunSummary(
     `${emoji} <b>Poshmark Run Complete</b>`,
     '',
     `Processed: ${processed}`,
+    `Needs Pricing: ${needsPricing}`,
     `Pending Review: ${pendingReview}`,
     `Ready to Post: ${readyToPost}`,
     `Posted: ${posted}`,

@@ -46,6 +46,7 @@ export async function run(): Promise<void> {
   const results = {
     processed: 0,
     posted: 0,
+    needsPricing: 0,
     pendingReview: 0,
     readyToPost: 0,
     sold: 0,
@@ -86,6 +87,15 @@ export async function run(): Promise<void> {
       item.pricingReasoning = analysis.pricing.reasoning;
       item.pricingConfidence = analysis.pricing.confidence;
 
+      if (analysis.needsPricing) {
+        item.status = 'needs_pricing';
+        item.notes = (item.notes ? item.notes + ' | ' : '') + (analysis.needsPricingReason ?? 'Needs pricing');
+        item.lastUpdated = new Date().toISOString();
+        await updateItem(sheets, spreadsheetId, item);
+        results.needsPricing++;
+        continue;
+      }
+
       if (analysis.needsReview) {
         item.status = 'pending_review';
         item.notes = (item.notes ? item.notes + ' | ' : '') + (analysis.reviewReason ?? 'Needs review');
@@ -118,7 +128,7 @@ export async function run(): Promise<void> {
 
   await closeBrowser();
   await cleanupTempPhotos();
-  await notifyRunSummary(results.processed, results.posted, results.pendingReview, results.readyToPost, results.sold, results.errors);
+  await notifyRunSummary(results.processed, results.posted, results.needsPricing, results.pendingReview, results.readyToPost, results.sold, results.errors);
 
   console.log('✅ Run complete:', JSON.stringify(results, null, 2));
 }

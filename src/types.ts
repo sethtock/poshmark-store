@@ -1,6 +1,7 @@
 // Shared types for the Poshmark store pipeline
 
 export type ItemStatus =
+  | 'needs_pricing'
   | 'pending_review'
   | 'ready_to_post'
   | 'posted'
@@ -38,6 +39,8 @@ export interface PricingResult {
   confidence: 'high' | 'medium' | 'low';
   comparables: ComparableItem[];
   reasoning: string;
+  source: 'comparables' | 'rule_based';
+  cacheHit: boolean;
 }
 
 export interface ComparableItem {
@@ -51,6 +54,7 @@ export interface ComparableItem {
 export interface AgentRunResult {
   itemsProcessed: number;
   itemsPosted: number;
+  itemsNeedsPricing?: number;
   itemsPendingReview: number;
   errors: string[];
   summary: string;

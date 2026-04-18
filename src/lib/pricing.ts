@@ -73,6 +73,8 @@ function isGoldenGooseFootwear(brand: string | null, itemType: string | null): b
 export interface AnalyzeResult {
   item: Item;
   pricing: PricingResult;
+  needsPricing: boolean;
+  needsPricingReason?: string;
   needsReview: boolean;
   reviewReason?: string;
 }
@@ -84,6 +86,15 @@ export interface AnalyzeResult {
 export async function analyzeItem(item: Item): Promise<AnalyzeResult> {
   const description = generateListingDescription(item);
   const pricing = await calculatePricing(item, description);
+  const hasSearchablePricingIdentity =
+    hasMeaningfulValue(item.brand) &&
+    hasMeaningfulValue(item.size) &&
+    hasMeaningfulValue(item.category);
+
+  const needsPricing = hasSearchablePricingIdentity && pricing.source === 'rule_based' && !pricing.cacheHit;
+  const needsPricingReason = needsPricing
+    ? 'No cached comparable pricing for this brand/item/size yet'
+    : undefined;
 
   const needsReview =
     pricing.confidence === 'low' ||
@@ -97,7 +108,14 @@ export async function analyzeItem(item: Item): Promise<AnalyzeResult> {
   else if (!hasMeaningfulValue(item.brand)) reviewReason = 'No brand detected';
   else if (!hasMeaningfulValue(item.size)) reviewReason = 'No size detected';
 
-  return { item: { ...item, description }, pricing, needsReview, reviewReason };
+  return {
+    item: { ...item, description },
+    pricing,
+    needsPricing,
+    needsPricingReason,
+    needsReview,
+    reviewReason,
+  };
 }
 
 async function calculatePricing(
@@ -124,6 +142,8 @@ async function calculatePricing(
       confidence,
       comparables: comps,
       reasoning: `Based on ${comps.length} Poshmark sold comp(s)${cacheNote}, avg $${avgComp.toFixed(2)} × ${conditionMult} (${item.condition}) = $${price}`,
+      source: 'comparables',
+      cacheHit: compResult.fromCache,
     };
   }
 
@@ -138,7 +158,9 @@ async function calculatePricing(
       price,
       confidence: 'medium',
       comparables: [],
-      reasoning: `Rule-based luxury footwear fallback: Golden Goose base $${luxuryBasePrice} × condition ${conditionMult} = $${price}`,
+      reasoning: `Rule-based luxury footwear fallback${compResult.fromCache ? ' after cache hit' : ' with no cached comps'}: Golden Goose base $${luxuryBasePrice} × condition ${conditionMult} = $${price}`,
+      source: 'rule_based',
+      cacheHit: compResult.fromCache,
     };
   }
 
@@ -150,6 +172,8 @@ async function calculatePricing(
     price,
     confidence: 'medium',
     comparables: [],
-    reasoning: `Rule-based: base $${basePrice} × brand mult ${brandMult} × condition ${conditionMult} = $${price}`,
+    reasoning: `Rule-based${compResult.fromCache ? ' after cache hit' : ' with no cached comps'}: base $${basePrice} × brand mult ${brandMult} × condition ${conditionMult} = $${price}`,
+    source: 'rule_based',
+    cacheHit: compResult.fromCache,
   };
 }

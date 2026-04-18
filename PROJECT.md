@@ -54,6 +54,7 @@ Chris creates a numbered folder per item, drops all photos in. Sub-agent scans f
 
 | Status | Meaning | Who updates |
 |---|---|---|
+| `needs_pricing` | Missing cached comparable pricing, do not auto-post | Seth |
 | `pending_review` | Needs human input before posting | Seth → flags Chris |
 | `ready_to_post` | Processed, approved, waiting to be posted | Seth (after approval or auto-process) |
 | `posted` | Live on Poshmark | Seth (browser automation, triggered by Chris) |
@@ -62,7 +63,7 @@ Chris creates a numbered folder per item, drops all photos in. Sub-agent scans f
 | `sold` | Payment received / transaction complete | Seth (browser check or Chris says) |
 | `error` | Something went wrong | Seth flags with error note |
 
-**Note:** Only postable items go through `ready_to_post` before posting. Items missing critical fields like size stay `pending_review` so Chris can fix them first.
+**Note:** Only postable items go through `ready_to_post` before posting. Items without cached comparable pricing stay `needs_pricing`. Items missing critical fields like size stay `pending_review` so Chris can fix them first.
 
 ---
 
@@ -75,13 +76,14 @@ Chris creates a numbered folder per item, drops all photos in. Sub-agent scans f
    a. Run vision AI on cover photo → structured description (brand, type, size, color, condition)
    b. Web search for Poshmark sold comparables → get pricing data
    c. Apply pricing rules → set price
-   d. If price > $80 OR low confidence OR no brand/size (including junk values like `null`) → set status `pending_review`, ping Chris on Telegram with details
-   e. If auto-processable:
+   d. If sold comps are unavailable and this brand/item/size is not already in the local comparable cache → set status `needs_pricing`
+   e. If price > $80 OR low confidence OR no brand/size (including junk values like `null`) → set status `pending_review`, ping Chris on Telegram with details
+   f. If auto-processable:
       - Set status `ready_to_post`
       - Update Google Sheet row with all details (description, brand, size, price, pricing reasoning, confidence)
       - Ping Chris on Telegram: "Ready to Post" with approve/post button
-   f. Chris tells Seth to post (via Telegram or by saying "post item-003")
-   g. Seth runs browser automation → Poshmark listing created → status `posted`
+   g. Chris tells Seth to post (via Telegram or by saying "post item-003")
+   h. Seth runs browser automation → Poshmark listing created → status `posted`
 
 ### Post-Sale Flow
 1. Chris notifies Seth: "item-003 shipped" (or Seth checks Poshmark periodically)
@@ -114,6 +116,7 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 - Average sell price
 
 ### Conditional Formatting
+- `needs_pricing` → light orange
 - `pending_review` → yellow
 - `ready_to_post` → gray (needs Chris action to post)
 - `posted` → blue
@@ -126,8 +129,9 @@ Columns: `Item ID` | `Date Added` | `Folder Name` | `Drive Folder` | `Descriptio
 
 ## Pricing Engine
 
-- Base rules: brand + item type + condition → starting price
-- Web search: Poshmark sold comps for similar items
+- Comparable cache hit: may use sold comps or cached pricing context directly
+- Comparable cache miss: do not auto-post on rule-based pricing alone, mark `needs_pricing`
+- Rule-based pricing remains a fallback only when the brand/item/size already has cached comparable context
 - Items >$80 → `pending_review` (one-off manual review)
 - Items with low brand/type confidence → `pending_review`
 - All others → auto-post
