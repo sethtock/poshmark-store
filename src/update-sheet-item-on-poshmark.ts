@@ -66,7 +66,6 @@ async function main(): Promise<void> {
     listingIdOrUrl: item.poshmarkUrl,
     title: item.title,
     description: item.description,
-    category: item.category,
     brand: item.brand,
     size: item.size,
     condition: item.condition,
@@ -80,6 +79,9 @@ async function main(): Promise<void> {
   const spreadsheetId = getSpreadsheetId();
   await updateItem(sheets, spreadsheetId, item);
   console.log(`Updated ${item.id} on Poshmark`);
+  if (item.category) {
+    console.log(`Note: skipped category update for ${item.id}. If the category needs to change, update it manually in Poshmark.`);
+  }
 }
 
 main()

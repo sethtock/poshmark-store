@@ -487,20 +487,10 @@ export async function updateListing(update: ListingUpdateData): Promise<{ listin
     }
 
     if (update.category) {
-      const mappedCategory = mapCategory(update.category);
-      const categoryDropdown = page.locator('div.listing-editor__category-container div[data-test="dropdown"]').first();
-      if (await categoryDropdown.isVisible().catch(() => false)) {
-        await categoryDropdown.click({ force: true });
-        await page.waitForTimeout(300);
-        await page.locator(`a[data-et-name="${mappedCategory.department}"]`).click({ force: true });
-        await page.waitForTimeout(300);
-        if (mappedCategory.subcategory) {
-          await page.locator('div.listing-editor__category-container li', { hasText: mappedCategory.subcategory }).first().click({ force: true });
-          await page.waitForTimeout(400);
-        } else {
-          await page.keyboard.press('Escape').catch(() => {});
-        }
-      }
+      // Category updates are intentionally skipped in the direct-edit flow.
+      // Poshmark's edit-category picker has been flaky enough to break otherwise-safe title/description/price updates.
+      // When category actually needs to change, do that one manually in Poshmark.
+      console.warn(`Skipping category update for ${listingId}. Update category manually in Poshmark if needed.`);
     }
 
     if (update.size != null) {

@@ -91,6 +91,8 @@ npx tsx src/post-single-ready.ts
 npm run poshmark:update-item -- item-031
 ```
 
+Note: the direct edit flow currently updates title, description, price, condition, brand, and size, but it intentionally skips category changes because Poshmark's edit-category picker is flaky. If a category needs to change, update that one manually in Poshmark.
+
 ### Poshmark auth bootstrap
 
 Use the durable two-step auth flow, not ad hoc login retries:
