@@ -52,10 +52,23 @@ describe('Vision Analysis', () => {
       const normalizedCategory = normalizeNullableText(category);
       const combined = `${normalizedCategory ?? ''} ${itemType ?? ''} ${notes ?? ''}`.toLowerCase();
       if (/(newsboy|ivy)\s+cap|\bhat\b|\bcap\b|accessor/.test(combined)) return 'hats';
+      if (/matching\s*set|two[-\s]*piece|2[-\s]*piece|top\s+and\s+shorts|top\s+and\s+pants/.test(combined)) return 'matching sets';
       if (/pajama|sleep(?:er|wear)|zip\s*sleeper/.test(combined)) return 'pajamas';
-      if (/one\s*piece|onesie|bodysuit|jumpsuit/.test(combined)) return 'one pieces';
+      if (/one[-\s]*piece|onesie|bodysuit|jumpsuit/.test(combined)) return 'one pieces';
+      if (/zip(?:per)?\s*(front|closure)?|snap\s*buttons?\s*at\s*the\s*bottom/.test(combined) && !/shirt|top/.test(combined)) return 'one pieces';
       if (/shoe|footwear|sneaker/.test(combined)) return 'shoes';
       return normalizedCategory;
+    };
+
+    const normalizeVisionItemType = (itemType: string | null | undefined, notes: string | null | undefined) => {
+      const normalizedItemType = normalizeNullableText(itemType);
+      const combined = `${normalizedItemType ?? ''} ${notes ?? ''}`.toLowerCase();
+      if (/matching\s*set|two[-\s]*piece|2[-\s]*piece|top\s+and\s+shorts|top\s+and\s+pants/.test(combined)) return 'set';
+      if (/pajama|sleep(?:er|wear)|zip\s*sleeper|footie|footed|flame\s*resistant/.test(combined)) return 'pajamas';
+      if (/romper/.test(combined)) return 'romper';
+      if (/one[-\s]*piece|onesie|bodysuit|jumpsuit|coverall|bubble/.test(combined)) return 'one piece';
+      if (/zip(?:per)?\s*(front|closure)?|snap\s*buttons?\s*at\s*the\s*bottom/.test(combined) && !/shirt|top/.test(combined)) return 'one piece';
+      return normalizedItemType;
     };
 
     const normalizeVisionSize = (size: string | null | undefined, notes: string | null | undefined) => {
@@ -158,6 +171,13 @@ describe('Vision Analysis', () => {
       expect(normalizeVisionCategory('footwear', 'sneakers', '')).toBe('shoes');
       expect(normalizeVisionCategory('accessories', 'cap', 'newsboy cap')).toBe('hats');
       expect(normalizeVisionCategory('tops', 'zip sleeper', 'bamboo pajama sleeper')).toBe('pajamas');
+    });
+
+    it('pulls sleepers, one-pieces, and sets out of generic tops', () => {
+      expect(normalizeVisionItemType('top', 'bamboo zip sleeper with footie design')).toBe('pajamas');
+      expect(normalizeVisionCategory('tops', 'top', 'zip front one-piece with snap buttons at the bottom')).toBe('one pieces');
+      expect(normalizeVisionItemType('top', 'matching top and shorts set')).toBe('set');
+      expect(normalizeVisionCategory('tops', 'top', 'matching top and shorts set')).toBe('matching sets');
     });
   });
 

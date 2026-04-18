@@ -39,10 +39,12 @@ function normalizeVisionItemType(itemType: string | null | undefined, notes: str
   const combined = `${normalizedItemType ?? ''} ${notes ?? ''}`.toLowerCase();
 
   if (/(newsboy|ivy)\s+cap|\bhat\b|\bcap\b/.test(combined)) return 'hat';
+  if (/matching\s*set|two[-\s]*piece|2[-\s]*piece|top\s+and\s+shorts|top\s+and\s+pants/.test(combined)) return 'set';
   if (/blazer|sport\s*coat|suit\s*jacket/.test(combined)) return 'blazer';
-  if (/pajama|sleep(?:er|wear)|zip\s*sleeper/.test(combined)) return 'pajamas';
+  if (/pajama|sleep(?:er|wear)|zip\s*sleeper|footie|footed|flame\s*resistant/.test(combined)) return 'pajamas';
   if (/romper/.test(combined)) return 'romper';
-  if (/one\s*piece|onesie|bodysuit|jumpsuit/.test(combined)) return 'one piece';
+  if (/one[-\s]*piece|onesie|bodysuit|jumpsuit|coverall|bubble/.test(combined)) return 'one piece';
+  if (/zip(?:per)?\s*(front|closure)?|snap\s*buttons?\s*at\s*the\s*bottom/.test(combined) && !/shirt|top/.test(combined)) return 'one piece';
   if (/sneaker/.test(combined)) return 'sneakers';
   if (/shoe|footwear/.test(combined)) return 'shoes';
 
@@ -55,9 +57,11 @@ function normalizeVisionCategory(category: string | null | undefined, itemType: 
 
   if (/(newsboy|ivy)\s+cap|\bhat\b|\bcap\b|accessor/.test(combined)) return 'hats';
   if (/blazer|sport\s*coat|suit\s*jacket|jacket|coat/.test(combined)) return 'jackets';
-  if (/pajama|sleep(?:er|wear)|zip\s*sleeper/.test(combined)) return 'pajamas';
+  if (/matching\s*set|two[-\s]*piece|2[-\s]*piece|top\s+and\s+shorts|top\s+and\s+pants/.test(combined)) return 'matching sets';
+  if (/pajama|sleep(?:er|wear)|zip\s*sleeper|footie|footed|flame\s*resistant/.test(combined)) return 'pajamas';
   if (/romper/.test(combined)) return 'rompers';
-  if (/one\s*piece|onesie|bodysuit|jumpsuit/.test(combined)) return 'one pieces';
+  if (/one[-\s]*piece|onesie|bodysuit|jumpsuit|coverall|bubble/.test(combined)) return 'one pieces';
+  if (/zip(?:per)?\s*(front|closure)?|snap\s*buttons?\s*at\s*the\s*bottom/.test(combined) && !/shirt|top/.test(combined)) return 'one pieces';
   if (/sandal/.test(combined)) return 'sandals';
   if (/boot/.test(combined)) return 'boots';
   if (/shoe|footwear|sneaker/.test(combined)) return 'shoes';
@@ -158,14 +162,20 @@ export async function analyzePhoto(photoUrlOrPath: string): Promise<VisionResult
                 type: 'text',
                 text: `Analyze this kids clothing or shoes photo. ${KNOWN_BRAND_GUIDANCE}
 Important: look very carefully for size tags, tongue labels, insole stamps, inner collar labels, and outsole stamps. If text is sideways or upside down, mentally rotate it before answering. If a size is visible anywhere in the image, return the exact size label. Prefer kids shoe sizes like 6C, 7C, 2Y, toddler 7, or EU 23.5 over vague guesses.
+Important categorization rules:
+- If the garment is full-body with a zipper or snaps and is meant for sleep, return itemType/category as pajamas or sleeper, not top.
+- If it is a full-body garment with zipper/snaps but not clearly sleepwear, return one piece, romper, or jumpsuit, not top.
+- If there is a matching top and bottom together, return set / matching sets.
+- If it is shoes, sneakers, boots, or sandals, return category as shoes / sneakers / boots / sandals, not generic footwear.
+- Avoid calling something a top when the photo shows a sleeper, onesie, bodysuit, romper, or pajama set.
 Return ONLY valid JSON (no markdown, no explanation):
 {
   "brand": "brand name or null",
-  "itemType": "type of item (shirt, pants, dress, sneakers, sandals, etc.)",
+  "itemType": "type of item (top, pants, dress, pajamas, romper, one piece, set, shoes, sneakers, sandals, etc.)",
   "size": "exact size label from the photo, or null",
   "color": "primary color or null",
   "condition": "like_new, good, or fair",
-  "category": "category (tops, bottoms, dresses, footwear, sneakers, etc.)",
+  "category": "category (tops, bottoms, dresses, pajamas, one pieces, matching sets, shoes, sneakers, etc.)",
   "confidence": "high, medium, or low",
   "notes": "any additional observations, including visible brand cues, style details, exact tag text, and real wear vs intentional distress"
 }`,
