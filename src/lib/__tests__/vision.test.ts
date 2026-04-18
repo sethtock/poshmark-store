@@ -40,15 +40,40 @@ describe('Vision Analysis', () => {
     const normalizeVisionBrand = (brand: string | null | undefined, notes: string | null | undefined) => {
       const normalizedBrand = normalizeNullableText(brand);
       const combined = `${normalizedBrand ?? ''} ${notes ?? ''}`.toLowerCase();
+      if (/kyte(?:\s*baby)?/.test(combined)) return 'Kyte BABY';
       if (/golden\s*goose|ggdb|sstar/.test(combined)) return 'Golden Goose';
       if (/\bvans\b|off the wall/.test(combined)) return 'Vans';
       if (/janie\s+and\s+jack/.test(combined)) return 'Janie and Jack';
+      if (/posh\s*peanut/.test(combined)) return 'Posh Peanut';
       return normalizedBrand;
+    };
+
+    const normalizeVisionCategory = (category: string | null | undefined, itemType: string | null | undefined, notes: string | null | undefined) => {
+      const normalizedCategory = normalizeNullableText(category);
+      const combined = `${normalizedCategory ?? ''} ${itemType ?? ''} ${notes ?? ''}`.toLowerCase();
+      if (/(newsboy|ivy)\s+cap|\bhat\b|\bcap\b|accessor/.test(combined)) return 'hats';
+      if (/pajama|sleep(?:er|wear)|zip\s*sleeper/.test(combined)) return 'pajamas';
+      if (/one\s*piece|onesie|bodysuit|jumpsuit/.test(combined)) return 'one pieces';
+      if (/shoe|footwear|sneaker/.test(combined)) return 'shoes';
+      return normalizedCategory;
     };
 
     const normalizeVisionSize = (size: string | null | undefined, notes: string | null | undefined) => {
       const normalizedSize = normalizeNullableText(size);
       const combined = `${normalizedSize ?? ''} ${notes ?? ''}`;
+      const monthCompact = combined.match(/\b(0|3|6|9|12|18|24|36)\s*\/\s*(3|6|9|12|18|24|36)\s*m\b/i);
+      if (monthCompact) return `${monthCompact[1]}-${monthCompact[2]}M`;
+      const monthRange = combined.match(/\b(0|3|6|9|12|18|24|36)\s*(?:to|-)\s*(3|6|9|12|18|24|36)\s*(?:months|month|mos|m)\b/i);
+      if (monthRange) return `${monthRange[1]}-${monthRange[2]}M`;
+      const monthSingle = combined.match(/\b(newborn|nb|0\s*months?|3\s*months?|6\s*months?|9\s*months?|12\s*months?|18\s*months?|24\s*months?|36\s*months?)\b/i);
+      if (monthSingle) {
+        const raw = monthSingle[1].toUpperCase().replace(/\s+MONTHS?/, 'M');
+        if (raw === 'NEWBORN') return 'NEWBORN';
+        if (raw === 'NB') return 'NB';
+        return raw.replace(/\s+/g, '');
+      }
+      const toddlerAlpha = combined.match(/\b(\d+)\s*T\b/i);
+      if (toddlerAlpha) return `${toddlerAlpha[1]}T`;
       const kidsAlpha = combined.match(/\b(?:us\s*)?(\d+(?:\.\d+)?)\s*([CYT])\b/i);
       if (kidsAlpha) return `${kidsAlpha[1]}${kidsAlpha[2].toUpperCase()}`;
       const euSize = combined.match(/\bEU\s*(\d+(?:\.\d+)?)\b/i);
@@ -113,11 +138,26 @@ describe('Vision Analysis', () => {
       expect(normalizeVisionBrand(null, 'OFF THE WALL heel branding visible')).toBe('Vans');
     });
 
+    it('normalizes Kyte BABY and does not confuse it with Kite', () => {
+      expect(normalizeVisionBrand(null, 'Kyte Baby tag visible size 0-3')).toBe('Kyte BABY');
+      expect(normalizeVisionBrand('Kite', 'label clearly says Kite')).toBe('Kite');
+    });
+
     it('normalizes kids size from notes and tag text', () => {
       expect(normalizeVisionSize(null, 'size tag shows US 6C')).toBe('6C');
       expect(normalizeVisionSize('US 6C', '')).toBe('6C');
       expect(normalizeVisionSize(null, 'EU 23.5 on inner tag')).toBe('EU 23.5');
       expect(normalizeVisionSize(null, 'Toddler 7 visible on label')).toBe('US Toddler 7');
+      expect(normalizeVisionSize(null, 'size 0/3M on label')).toBe('0-3M');
+      expect(normalizeVisionSize(null, '6 to 12 months visible on tag')).toBe('6-12M');
+      expect(normalizeVisionSize(null, 'NEWBORN 0 months')).toBe('NEWBORN');
+      expect(normalizeVisionSize(null, '2T tag visible')).toBe('2T');
+    });
+
+    it('normalizes generic footwear and sleepwear categories into friendlier buckets', () => {
+      expect(normalizeVisionCategory('footwear', 'sneakers', '')).toBe('shoes');
+      expect(normalizeVisionCategory('accessories', 'cap', 'newsboy cap')).toBe('hats');
+      expect(normalizeVisionCategory('tops', 'zip sleeper', 'bamboo pajama sleeper')).toBe('pajamas');
     });
   });
 

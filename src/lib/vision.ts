@@ -2,7 +2,8 @@
 
 import type { Item } from '../types.js';
 
-const KNOWN_BRAND_GUIDANCE = `Known brands often seen in this closet: Nike, Adidas, Jordan, Janie and Jack, Golden Goose, Vans.
+const KNOWN_BRAND_GUIDANCE = `Known brands often seen in this closet: Nike, Adidas, Jordan, Janie and Jack, Golden Goose, Vans, Kyte BABY, Posh Peanut, Petite Plume, Appaman, Jacadi, Hanna Andersson, Burberry.
+Important brand distinction: Kyte BABY and Kite are different brands. If the tag says Kyte or Kyte BABY, return "Kyte BABY". Only return "Kite" when the label clearly says Kite.
 For Golden Goose kids sneakers, watch for these cues: side star applique, GGDB branding, SSTAR lettering on straps, Golden Goose heel or insole branding, Made in Italy stamp, and an intentionally vintage or distressed-looking sole. Do not mistake Golden Goose's intentional worn-in styling for severe damage unless there is additional real wear.
 For Vans kids shoes, watch for these cues: Vans tongue or insole branding, OFF THE WALL heel branding, signature side stripe, waffle sole, and skate-style low or mid top silhouettes, often with velcro straps on toddler pairs.`;
 
@@ -18,16 +19,75 @@ function normalizeVisionBrand(brand: string | null | undefined, notes: string | 
   const normalizedBrand = normalizeNullableText(brand);
   const combined = `${normalizedBrand ?? ''} ${notes ?? ''}`.toLowerCase();
 
+  if (/kyte(?:\s*baby)?/.test(combined)) return 'Kyte BABY';
   if (/golden\s*goose|ggdb|sstar/.test(combined)) return 'Golden Goose';
   if (/\bvans\b|off the wall/.test(combined)) return 'Vans';
   if (/janie\s+and\s+jack/.test(combined)) return 'Janie and Jack';
+  if (/posh\s*peanut/.test(combined)) return 'Posh Peanut';
+  if (/petite\s*plume/.test(combined)) return 'Petite Plume';
+  if (/hanna\s*andersson/.test(combined)) return 'Hanna Andersson';
+  if (/appaman/.test(combined)) return 'Appaman';
+  if (/jacadi/.test(combined)) return 'Jacadi';
+  if (/lululemon/.test(combined)) return 'Lululemon';
+  if (/burberry/.test(combined)) return 'Burberry';
 
   return normalizedBrand;
+}
+
+function normalizeVisionItemType(itemType: string | null | undefined, notes: string | null | undefined): string | null {
+  const normalizedItemType = normalizeNullableText(itemType);
+  const combined = `${normalizedItemType ?? ''} ${notes ?? ''}`.toLowerCase();
+
+  if (/(newsboy|ivy)\s+cap|\bhat\b|\bcap\b/.test(combined)) return 'hat';
+  if (/blazer|sport\s*coat|suit\s*jacket/.test(combined)) return 'blazer';
+  if (/pajama|sleep(?:er|wear)|zip\s*sleeper/.test(combined)) return 'pajamas';
+  if (/romper/.test(combined)) return 'romper';
+  if (/one\s*piece|onesie|bodysuit|jumpsuit/.test(combined)) return 'one piece';
+  if (/sneaker/.test(combined)) return 'sneakers';
+  if (/shoe|footwear/.test(combined)) return 'shoes';
+
+  return normalizedItemType;
+}
+
+function normalizeVisionCategory(category: string | null | undefined, itemType: string | null | undefined, notes: string | null | undefined): string | null {
+  const normalizedCategory = normalizeNullableText(category);
+  const combined = `${normalizedCategory ?? ''} ${itemType ?? ''} ${notes ?? ''}`.toLowerCase();
+
+  if (/(newsboy|ivy)\s+cap|\bhat\b|\bcap\b|accessor/.test(combined)) return 'hats';
+  if (/blazer|sport\s*coat|suit\s*jacket|jacket|coat/.test(combined)) return 'jackets';
+  if (/pajama|sleep(?:er|wear)|zip\s*sleeper/.test(combined)) return 'pajamas';
+  if (/romper/.test(combined)) return 'rompers';
+  if (/one\s*piece|onesie|bodysuit|jumpsuit/.test(combined)) return 'one pieces';
+  if (/sandal/.test(combined)) return 'sandals';
+  if (/boot/.test(combined)) return 'boots';
+  if (/shoe|footwear|sneaker/.test(combined)) return 'shoes';
+  if (/dress/.test(combined)) return 'dresses';
+  if (/pant|legging|short|bottom/.test(combined)) return 'bottoms';
+  if (/shirt|top|blouse|sweater|cardigan/.test(combined)) return 'tops';
+
+  return normalizedCategory;
 }
 
 function normalizeVisionSize(size: string | null | undefined, notes: string | null | undefined): string | null {
   const normalizedSize = normalizeNullableText(size);
   const combined = `${normalizedSize ?? ''} ${notes ?? ''}`;
+
+  const monthCompact = combined.match(/\b(0|3|6|9|12|18|24|36)\s*\/\s*(3|6|9|12|18|24|36)\s*m\b/i);
+  if (monthCompact) return `${monthCompact[1]}-${monthCompact[2]}M`;
+
+  const monthRange = combined.match(/\b(0|3|6|9|12|18|24|36)\s*(?:to|-)\s*(3|6|9|12|18|24|36)\s*(?:months|month|mos|m)\b/i);
+  if (monthRange) return `${monthRange[1]}-${monthRange[2]}M`;
+
+  const monthSingle = combined.match(/\b(newborn|nb|0\s*months?|3\s*months?|6\s*months?|9\s*months?|12\s*months?|18\s*months?|24\s*months?|36\s*months?)\b/i);
+  if (monthSingle) {
+    const raw = monthSingle[1].toUpperCase().replace(/\s+MONTHS?/, 'M');
+    if (raw === 'NEWBORN') return 'NEWBORN';
+    if (raw === 'NB') return 'NB';
+    return raw.replace(/\s+/g, '');
+  }
+
+  const toddlerAlpha = combined.match(/\b(\d+)\s*T\b/i);
+  if (toddlerAlpha) return `${toddlerAlpha[1]}T`;
 
   const kidsAlpha = combined.match(/\b(?:us\s*)?(\d+(?:\.\d+)?)\s*([CYT])\b/i);
   if (kidsAlpha) return `${kidsAlpha[1]}${kidsAlpha[2].toUpperCase()}`;
@@ -135,14 +195,15 @@ Return ONLY valid JSON (no markdown, no explanation):
     const parsed = JSON.parse(jsonStr) as Partial<VisionResult & { notes: string }>;
 
     const notes = parsed.notes ?? '';
+    const itemType = normalizeVisionItemType(parsed.itemType ?? null, notes);
 
     return {
       brand: normalizeVisionBrand(parsed.brand ?? null, notes),
-      itemType: normalizeNullableText(parsed.itemType ?? null),
+      itemType,
       size: normalizeVisionSize(parsed.size ?? null, notes),
       color: normalizeNullableText(parsed.color ?? null),
       condition: (parsed.condition as VisionResult['condition']) ?? 'good',
-      category: normalizeNullableText(parsed.category ?? null),
+      category: normalizeVisionCategory(parsed.category ?? null, itemType, notes),
       confidence: (parsed.confidence as Confidence) ?? 'low',
       rawDescription: notes,
     };
