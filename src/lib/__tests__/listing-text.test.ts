@@ -38,4 +38,39 @@ describe('listing text generation', () => {
     expect(description).toContain('New with tags from Janie and Jack in pink.');
     expect(description).not.toContain('worn by my little one');
   });
+
+  it('strips hedging about photos from detail notes', () => {
+    const description = generateListingDescription({
+      condition: 'good',
+      brand: 'Burberry',
+      category: 'button-down shirts',
+      color: 'Archive Beige',
+      notes: 'No major flaws visible in the photos. Wrinkling from storage.',
+    });
+
+    expect(description).toContain('Cute detail: no major flaws.');
+    expect(description).not.toContain('visible in the photos');
+  });
+
+  it('avoids visible-wear wording in stock condition lines', () => {
+    const likeNew = generateListingDescription({
+      condition: 'like_new',
+      brand: 'Nike',
+      category: 'shoes',
+      color: 'Blue',
+      notes: '',
+    });
+
+    const fair = generateListingDescription({
+      condition: 'fair',
+      brand: 'Nike',
+      category: 'shoes',
+      color: 'Blue',
+      notes: '',
+    });
+
+    expect(likeNew).toContain('little to no wear');
+    expect(likeNew).not.toContain('visible wear');
+    expect(fair).toContain('noticeable wear');
+  });
 });

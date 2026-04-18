@@ -97,6 +97,10 @@ function summarizeNotes(notes: string | null | undefined): string | null {
 
   return cleaned
     .replace(/^(the item|item|features?)\s+/i, '')
+    .replace(/\bno major flaws visible in (?:the )?photos\b/gi, 'no major flaws')
+    .replace(/\bno flaws visible in (?:the )?photos\b/gi, 'no flaws')
+    .replace(/\bvisible in (?:the )?photos\b/gi, '')
+    .replace(/\bvisible wear\b/gi, 'wear')
     .replace(/\.$/, '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -115,9 +119,9 @@ export function generateListingDescription(item: Pick<Item, 'condition' | 'brand
   const conditionLine = {
     nwt: 'Never worn and ready to go.',
     nwot: 'Never worn, just missing the original tags.',
-    like_new: 'In excellent condition with little to no visible wear.',
+    like_new: 'In excellent condition with little to no wear.',
     good: 'Gently used and still in really nice shape.',
-    fair: 'Pre-loved with visible wear, priced accordingly.',
+    fair: 'Pre-loved with noticeable wear, priced accordingly.',
   }[item.condition] ?? 'Pre-loved and ready for a new home.';
 
   const detailLine = noteSummary
